@@ -41,7 +41,6 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
 # Copy Prisma schema so migrations can run at startup
 COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/src/generated ./src/generated
 
 # Entrypoint script runs migrations then starts server
