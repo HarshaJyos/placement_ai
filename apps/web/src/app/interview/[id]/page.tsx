@@ -275,36 +275,38 @@ export default function InterviewPage({ params }: { params: Promise<{ id: string
       if (videoRecorder) videoRecorder.stop();
       setIsRecording(false);
       
+      const currentQuestion = interview?.questions?.[currentIdx];
+      const questionId = currentQuestion?.id || "";
+
       // Delay processing slightly to let data accumulate
       setTimeout(() => {
-        processAndUploadAudioVideo();
+        processAndUploadAudioVideo(questionId);
       }, 600);
     }
   };
 
-  const processAndUploadAudioVideo = () => {
+  const processAndUploadAudioVideo = (questionId: string) => {
     setAudioChunks((currAudio) => {
       setVideoChunks((currVideo) => {
         if (currAudio.length === 0) return [];
         const audioBlob = new Blob(currAudio, { type: "audio/webm" });
         const videoBlob = new Blob(currVideo, { type: "video/webm" });
         setTempAudioBlob(audioBlob);
-        uploadResponse(audioBlob, videoBlob);
+        uploadResponse(audioBlob, videoBlob, questionId);
         return [];
       });
       return [];
     });
   };
 
-  const uploadResponse = async (audioBlob: Blob, videoBlob: Blob) => {
+  const uploadResponse = async (audioBlob: Blob, videoBlob: Blob, questionId: string) => {
     setIsProcessing(true);
     setError(null);
 
-    const currentQuestion = interview.questions[currentIdx];
     const formData = new FormData();
     formData.append("file", audioBlob, "response_audio.webm");
     formData.append("video", videoBlob, "response_video.webm");
-    formData.append("questionId", currentQuestion.id);
+    formData.append("questionId", questionId);
 
     try {
       const res = await fetch(`/api/interview/${interviewId}/answer`, {
@@ -341,11 +343,13 @@ export default function InterviewPage({ params }: { params: Promise<{ id: string
     
     setCurrentIdx((prevIdx) => {
       const newIdx = prevIdx + 1;
-      setTimeout(() => {
-        speakQuestion(interview.questions[newIdx].text, () => {
-          startRecording();
-        });
-      }, 400);
+      if (interview?.questions && newIdx < interview.questions.length) {
+        setTimeout(() => {
+          speakQuestion(interview.questions[newIdx].text, () => {
+            startRecording();
+          });
+        }, 400);
+      }
       return newIdx;
     });
   };
