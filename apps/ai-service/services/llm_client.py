@@ -15,6 +15,31 @@ class GeminiClient:
             self.has_key = False
             print("WARNING: GEMINI_API_KEY not found in environment. Running in Mock mode.")
 
+    def _parse_json_response(self, text: str) -> Dict[str, Any]:
+        cleaned = text.strip()
+        # Remove markdown fences if model outputs them
+        if cleaned.startswith("```"):
+            lines = cleaned.split("\n")
+            if lines[0].startswith("```"):
+                lines = lines[1:]
+            if lines[-1].startswith("```"):
+                lines = lines[:-1]
+            cleaned = "\n".join(lines).strip()
+            
+        try:
+            return json.loads(cleaned)
+        except json.JSONDecodeError as e:
+            # Fallback regex extraction of first outer curly braces block or array block
+            import re
+            match = re.search(r"(\{.*\}|\[.*\])", cleaned, re.DOTALL)
+            if match:
+                try:
+                    return json.loads(match.group(1))
+                except json.JSONDecodeError:
+                    pass
+            print(f"JSON Parse Error: failed parsing text: {cleaned}")
+            raise e
+
     def generate_json(self, prompt: str, system_instruction: str = None) -> Dict[str, Any]:
         if not self.has_key:
             # Fallback mock response generator based on request patterns
@@ -32,7 +57,7 @@ class GeminiClient:
                 generation_config={"response_mime_type": "application/json"}
             )
             
-            return json.loads(response.text)
+            return self._parse_json_response(response.text)
         except Exception as e:
             print(f"Gemini API Error: {e}. Retrying once...")
             try:
@@ -42,7 +67,7 @@ class GeminiClient:
                     prompt,
                     generation_config={"response_mime_type": "application/json"}
                 )
-                return json.loads(response.text)
+                return self._parse_json_response(response.text)
             except Exception as retry_err:
                 print(f"Gemini Retry Error: {retry_err}. Falling back to mock data.")
                 return self._generate_mock_response(prompt)
@@ -60,7 +85,7 @@ class GeminiClient:
                 contents,
                 generation_config={"response_mime_type": "application/json"}
             )
-            return json.loads(response.text)
+            return self._parse_json_response(response.text)
         except Exception as e:
             print(f"Gemini Multimodal API Error: {e}. Retrying once...")
             try:
@@ -69,7 +94,7 @@ class GeminiClient:
                     contents,
                     generation_config={"response_mime_type": "application/json"}
                 )
-                return json.loads(response.text)
+                return self._parse_json_response(response.text)
             except Exception as retry_err:
                 print(f"Gemini Multimodal Retry Error: {retry_err}. Falling back to mock data.")
                 return self._generate_mock_interview_evaluation(contents)

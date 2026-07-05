@@ -23,10 +23,11 @@ export default function InterviewPage({ params }: { params: Promise<{ id: string
   // Recording state
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
-  const [audioRecorder, setAudioRecorder] = useState<MediaRecorder | null>(null);
-  const [videoRecorder, setVideoRecorder] = useState<MediaRecorder | null>(null);
-  const [audioChunks, setAudioChunks] = useState<Blob[]>([]);
-  const [videoChunks, setVideoChunks] = useState<Blob[]>([]);
+  const isRecordingRef = useRef(false);
+  const audioRecorderRef = useRef<MediaRecorder | null>(null);
+  const videoRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const videoChunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Submit / Processing state
@@ -228,8 +229,10 @@ export default function InterviewPage({ params }: { params: Promise<{ id: string
 
   const startRecording = async () => {
     try {
-      setAudioChunks([]);
-      setVideoChunks([]);
+      if (isRecordingRef.current) return;
+
+      audioChunksRef.current = [];
+      videoChunksRef.current = [];
       setTranscript(null);
       setResponseSaved(false);
       setTempAudioBlob(null);
@@ -242,28 +245,45 @@ export default function InterviewPage({ params }: { params: Promise<{ id: string
       }
 
       const stream = streamRef.current;
+      const questionId = questionsRef.current[currentIdxRef.current]?.id || "";
+
+      const checkAndUpload = () => {
+        const aRec = audioRecorderRef.current;
+        const vRec = videoRecorderRef.current;
+        if ((!aRec || aRec.state === "inactive") && (!vRec || vRec.state === "inactive")) {
+          const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+          const videoBlob = new Blob(videoChunksRef.current, { type: "video/webm" });
+          setTempAudioBlob(audioBlob);
+          uploadResponse(audioBlob, videoBlob, questionId);
+        }
+      };
 
       // 1. Audio-only recording for Gemini evaluation
       const audioStream = new MediaStream(stream.getAudioTracks());
       const aRecorder = new MediaRecorder(audioStream, { mimeType: "audio/webm" });
       aRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
-          setAudioChunks((prev) => [...prev, event.data]);
+          audioChunksRef.current.push(event.data);
         }
       };
-      aRecorder.start();
-      setAudioRecorder(aRecorder);
+      aRecorder.onstop = checkAndUpload;
+      audioRecorderRef.current = aRecorder;
 
       // 2. Video + Audio recording for local storage
       const vRecorder = new MediaRecorder(stream, { mimeType: "video/webm" });
       vRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
-          setVideoChunks((prev) => [...prev, event.data]);
+          videoChunksRef.current.push(event.data);
         }
       };
-      vRecorder.start();
-      setVideoRecorder(vRecorder);
+      vRecorder.onstop = checkAndUpload;
+      videoRecorderRef.current = vRecorder;
 
+      // Start both
+      aRecorder.start();
+      vRecorder.start();
+
+      isRecordingRef.current = true;
       setIsRecording(true);
 
       // Start Silence Auto-detection
@@ -276,34 +296,18 @@ export default function InterviewPage({ params }: { params: Promise<{ id: string
   };
 
   const stopRecording = () => {
-    if (isRecording) {
-      stopSilenceDetection();
-      if (audioRecorder) audioRecorder.stop();
-      if (videoRecorder) videoRecorder.stop();
-      setIsRecording(false);
-      
-      const currentQuestion = questionsRef.current[currentIdxRef.current];
-      const questionId = currentQuestion?.id || "";
-
-      // Delay processing slightly to let data accumulate
-      setTimeout(() => {
-        processAndUploadAudioVideo(questionId);
-      }, 600);
+    if (!isRecordingRef.current) return;
+    isRecordingRef.current = false;
+    setIsRecording(false);
+    
+    stopSilenceDetection();
+    
+    if (audioRecorderRef.current && audioRecorderRef.current.state !== "inactive") {
+      audioRecorderRef.current.stop();
     }
-  };
-
-  const processAndUploadAudioVideo = (questionId: string) => {
-    setAudioChunks((currAudio) => {
-      setVideoChunks((currVideo) => {
-        if (currAudio.length === 0) return [];
-        const audioBlob = new Blob(currAudio, { type: "audio/webm" });
-        const videoBlob = new Blob(currVideo, { type: "video/webm" });
-        setTempAudioBlob(audioBlob);
-        uploadResponse(audioBlob, videoBlob, questionId);
-        return [];
-      });
-      return [];
-    });
+    if (videoRecorderRef.current && videoRecorderRef.current.state !== "inactive") {
+      videoRecorderRef.current.stop();
+    }
   };
 
   const uploadResponse = async (audioBlob: Blob, videoBlob: Blob, questionId: string) => {
