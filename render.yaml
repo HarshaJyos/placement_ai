@@ -2,6 +2,12 @@
 # Deploys both the Next.js frontend and Python FastAPI backend from GitHub.
 # Go to: https://dashboard.render.com/blueprints and connect your repository.
 
+envVarGroups:
+  - name: placement-secrets
+    envVars:
+      - key: GEMINI_API_KEY
+      - key: GITHUB_TOKEN
+
 services:
 
   # ── 1. Python FastAPI Backend Service ───────────────────────────────────────
@@ -10,8 +16,7 @@ services:
     env: docker
     dockerfilePath: apps/ai-service/Dockerfile
     envVars:
-      - key: GEMINI_API_KEY
-      - key: GITHUB_TOKEN
+      - fromGroup: placement-secrets
     disk:
       name: storage-disk
       mountPath: /data/storage
@@ -23,10 +28,9 @@ services:
     env: docker
     dockerfilePath: apps/web/Dockerfile
     envVars:
+      - fromGroup: placement-secrets
       - key: DATABASE_URL
         value: file:/data/db/prod.db
-      - key: GEMINI_API_KEY
-      - key: GITHUB_TOKEN
       - key: NEXTAUTH_SECRET
         generateValue: true
       - key: AI_SERVICE_URL
