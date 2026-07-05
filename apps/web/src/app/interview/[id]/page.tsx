@@ -513,9 +513,8 @@ export default function InterviewPage({ params }: { params: Promise<{ id: string
                 </button>
                 <button
                   onClick={repeatQuestion}
-                  disabled={phase === "saving" || phase === "done"}
                   title="Repeat question"
-                  className="w-12 h-12 rounded-xl bg-white/8 hover:bg-white/15 disabled:opacity-30 border border-white/10 flex items-center justify-center text-slate-300 transition-all"
+                  className="w-12 h-12 rounded-xl bg-white/8 hover:bg-white/15 border border-white/10 flex items-center justify-center text-slate-300 transition-all"
                 >
                   <RefreshCw size={15} />
                 </button>

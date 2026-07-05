@@ -1,0 +1,72 @@
+version: "3.9"
+
+# ─── PlacementAI — Docker Compose ─────────────────────────────────────────────
+# Starts the FastAPI AI service + Next.js web app as a single stack.
+# Usage:
+#   cp .env.example .env          # fill in real secrets
+#   docker compose up --build -d
+
+services:
+
+  # ── AI Service (FastAPI / Python 3.10) ───────────────────────────────────────
+  ai-service:
+    build:
+      context: ./apps/ai-service
+      dockerfile: Dockerfile
+    container_name: placement_ai_service
+    restart: unless-stopped
+    env_file:
+      - ./apps/ai-service/.env
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+    ports:
+      - "8000:8000"
+    volumes:
+      # Persist audio/video uploads outside the container
+      - storage_data:/data/storage
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+    networks:
+      - placement_net
+
+  # ── Web App (Next.js) ─────────────────────────────────────────────────────────
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+    container_name: placement_web
+    restart: unless-stopped
+    depends_on:
+      ai-service:
+        condition: service_healthy
+    env_file:
+      - ./apps/web/.env
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-file:/data/db/prod.db}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+      - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3000}
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+      - AI_SERVICE_URL=http://ai-service:8000
+    ports:
+      - "3000:3000"
+    volumes:
+      # Persist SQLite database outside the container
+      - db_data:/data/db
+    networks:
+      - placement_net
+
+# ── Named volumes ─────────────────────────────────────────────────────────────
+volumes:
+  storage_data:
+  db_data:
+
+# ── Network ───────────────────────────────────────────────────────────────────
+networks:
+  placement_net:
+    driver: bridge

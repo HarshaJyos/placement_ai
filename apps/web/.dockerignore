@@ -1,0 +1,26 @@
+# ── Web app .dockerignore ──────────────────────────────────────────────────────
+# Keeps Docker build context lean and fast
+node_modules
+.next
+.git
+.gitignore
+*.md
+*.log
+
+# Never ship secrets inside the image
+.env
+.env.*
+!.env.example
+
+# Dev databases — always use volume-mounted production DB
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# Dev tools
+.vscode
+.idea
+coverage
+.nyc_output
+inspect.js

@@ -1,7 +1,6 @@
 # Dependency directories
 node_modules/
 .venv/
-env/
 venv/
 ENV/
 
@@ -32,7 +31,6 @@ htmlcov/
 .env
 .env.*
 !.env.example
-secrets.json
 env
 
 # Storage / media / user uploads
@@ -40,9 +38,17 @@ storage/resumes/*
 !storage/resumes/.gitkeep
 storage/audio/*
 !storage/audio/.gitkeep
+storage/video/*
+!storage/video/.gitkeep
 
 # IDEs & System files
 .vscode/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Docker volumes (local)
+docker-volumes/
+
+# Inspect scripts
+apps/web/inspect.js
