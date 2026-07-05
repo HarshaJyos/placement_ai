@@ -42,6 +42,10 @@ export default function InterviewPage({ params }: { params: Promise<{ id: string
   const analyserRef = useRef<AnalyserNode | null>(null);
   const vadIntervalRef = useRef<number | null>(null);
 
+  // Sync index and questions for safe async access
+  const currentIdxRef = useRef(0);
+  const questionsRef = useRef<any[]>([]);
+
   useEffect(() => {
     if (status === "unauthenticated") {
       router.push("/login");
@@ -104,12 +108,15 @@ export default function InterviewPage({ params }: { params: Promise<{ id: string
 
       // Find the first unanswered question
       const questions = data.interview.questions || [];
+      questionsRef.current = questions;
       const unansweredIdx = questions.findIndex((q: any) => !q.response);
       
       if (unansweredIdx !== -1) {
         setCurrentIdx(unansweredIdx);
+        currentIdxRef.current = unansweredIdx;
       } else {
         setCurrentIdx(questions.length - 1);
+        currentIdxRef.current = questions.length - 1;
       }
     } catch (err: any) {
       setError(err.message || "An error occurred");
@@ -275,7 +282,7 @@ export default function InterviewPage({ params }: { params: Promise<{ id: string
       if (videoRecorder) videoRecorder.stop();
       setIsRecording(false);
       
-      const currentQuestion = interview?.questions?.[currentIdx];
+      const currentQuestion = questionsRef.current[currentIdxRef.current];
       const questionId = currentQuestion?.id || "";
 
       // Delay processing slightly to let data accumulate
@@ -319,8 +326,8 @@ export default function InterviewPage({ params }: { params: Promise<{ id: string
 
       setResponseSaved(true);
 
-      // Auto progress flow
-      if (currentIdx < interview.questions.length - 1) {
+      // Auto progress flow - safe check with Refs
+      if (currentIdxRef.current < questionsRef.current.length - 1) {
         setTimeout(() => {
           handleNextQuestionAuto();
         }, 1200);
@@ -341,17 +348,18 @@ export default function InterviewPage({ params }: { params: Promise<{ id: string
     setResponseSaved(false);
     setTempAudioBlob(null);
     
-    setCurrentIdx((prevIdx) => {
-      const newIdx = prevIdx + 1;
-      if (interview?.questions && newIdx < interview.questions.length) {
-        setTimeout(() => {
-          speakQuestion(interview.questions[newIdx].text, () => {
-            startRecording();
-          });
-        }, 400);
-      }
-      return newIdx;
-    });
+    // Update ref immediately to prevent race conditions during setTimeouts
+    const newIdx = currentIdxRef.current + 1;
+    currentIdxRef.current = newIdx;
+    setCurrentIdx(newIdx);
+
+    if (newIdx < questionsRef.current.length) {
+      setTimeout(() => {
+        speakQuestion(questionsRef.current[newIdx].text, () => {
+          startRecording();
+        });
+      }, 400);
+    }
   };
 
   const handleCompleteInterview = async () => {
@@ -453,10 +461,13 @@ export default function InterviewPage({ params }: { params: Promise<{ id: string
             <button
               onClick={() => {
                 setInterviewStarted(true);
-                if (interview && interview.questions) {
-                  speakQuestion(interview.questions[currentIdx].text, () => {
-                    startRecording();
-                  });
+                if (questionsRef.current.length > 0) {
+                  const firstQuestion = questionsRef.current[currentIdxRef.current];
+                  if (firstQuestion) {
+                    speakQuestion(firstQuestion.text, () => {
+                      startRecording();
+                    });
+                  }
                 }
               }}
               className="w-full py-4 rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-bold text-sm shadow-lg shadow-violet-500/25 active:scale-[0.98] transition-all cursor-pointer"
@@ -530,9 +541,12 @@ export default function InterviewPage({ params }: { params: Promise<{ id: string
               <button
                 onClick={() => {
                   stopSilenceDetection();
-                  speakQuestion(currentQuestion.text, () => {
-                    startRecording();
-                  });
+                  const curQuestion = questionsRef.current[currentIdxRef.current];
+                  if (curQuestion) {
+                    speakQuestion(curQuestion.text, () => {
+                      startRecording();
+                    });
+                  }
                 }}
                 disabled={isAiSpeaking || isProcessing}
                 className="flex items-center gap-1.5 text-slate-400 hover:text-slate-200 font-semibold transition-colors disabled:opacity-30 cursor-pointer"
