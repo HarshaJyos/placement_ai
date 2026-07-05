@@ -141,8 +141,11 @@ export default function InterviewPage({ params }: { params: Promise<{ id: string
         onEnd();
       };
       utterance.onerror = (e) => {
-        console.error("Speech error:", e);
         setIsAiSpeaking(false);
+        if (e.error === "interrupted" || e.error === "canceled") {
+          return;
+        }
+        console.error("Speech error:", e);
         onEnd();
       };
       
