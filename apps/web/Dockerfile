@@ -22,7 +22,8 @@ RUN npx prisma generate
 
 # Build Next.js (env vars injected at runtime via NEXT_PUBLIC_ or server-side process.env)
 ENV NEXT_TELEMETRY_DISABLED=1
-RUN npm run build
+RUN DATABASE_URL="file:./prisma/prod.db" npx prisma migrate deploy \
+ && npm run build
 
 # ── Stage 3: Production runner ────────────────────────────────────────────────
 FROM base AS runner
