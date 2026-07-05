@@ -8,7 +8,8 @@ RUN apk add --no-cache libc6-compat
 FROM base AS deps
 WORKDIR /app
 COPY package.json ./
-RUN npm install --legacy-peer-deps
+RUN apk add --no-cache python3 make g++ \
+ && npm install --legacy-peer-deps
 
 # ── Stage 2: Build ────────────────────────────────────────────────────────────
 FROM base AS builder
