@@ -1,0 +1,46 @@
+# ─── Render Blueprint Specification ───────────────────────────────────────────
+# Deploys both the Next.js frontend and Python FastAPI backend from GitHub.
+# Go to: https://dashboard.render.com/blueprints and connect your repository.
+
+services:
+
+  # ── 1. Python FastAPI Backend Service ───────────────────────────────────────
+  - type: web
+    name: placement-ai-service
+    env: docker
+    dockerfilePath: apps/ai-service/Dockerfile
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: true
+      - key: GITHUB_TOKEN
+        sync: true
+    disk:
+      name: storage-disk
+      mountPath: /data/storage
+      sizeGB: 1
+
+  # ── 2. Next.js Frontend Web App ─────────────────────────────────────────────
+  - type: web
+    name: placement-web
+    env: docker
+    dockerfilePath: apps/web/Dockerfile
+    envVars:
+      - key: DATABASE_URL
+        value: file:/data/db/prod.db
+      - key: GEMINI_API_KEY
+        sync: true
+      - key: GITHUB_TOKEN
+        sync: true
+      - key: NEXTAUTH_SECRET
+        generateValue: true
+      - key: NEXTAUTH_URL
+        sync: true # Enter your live Render URL here once created
+      - key: AI_SERVICE_URL
+        fromService:
+          name: placement-ai-service
+          type: web
+          property: host
+    disk:
+      name: db-disk
+      mountPath: /data/db
+      sizeGB: 1
