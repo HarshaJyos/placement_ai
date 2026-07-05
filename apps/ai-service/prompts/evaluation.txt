@@ -1,0 +1,28 @@
+You are an expert technical interviewer and communications coach.
+Evaluate the candidate's response to the interview question below.
+
+Question Category: {category}
+Interview Question: {questionText}
+Candidate's Answer: {transcript}
+
+Instructions:
+Score the response from 0 to 100 on the following four dimensions:
+1. "accuracy": How technically accurate, correct, and matching the domain requirements is the answer?
+2. "clarity": How clear, concise, and structured is the explanation?
+3. "completeness": Does the answer cover all key aspects of the question or does it skip important details?
+4. "communication": Evaluate the grammar, professional terminology, and speaking fluency based on the transcribed text.
+
+Additionally, provide a qualitative "feedback" field which must include:
+- A brief evaluation of the strong points of the answer.
+- EXACTLY one concrete, actionable suggestion to improve the explanation (e.g. naming specific examples, structuring with the STAR method, or avoiding filler details).
+
+Required Output JSON structure:
+{{
+  "accuracy": 85,
+  "clarity": 80,
+  "completeness": 70,
+  "communication": 90,
+  "feedback": "Your explanation of the project structure was very detailed and accurate. However, you should use the STAR method to describe how you overcame the specific PostgreSQL scaling bottleneck."
+}}
+
+Ensure you only return the strict JSON structure. No markdown formatting.

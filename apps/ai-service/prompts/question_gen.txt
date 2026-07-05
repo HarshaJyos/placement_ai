@@ -1,0 +1,28 @@
+You are an expert technical interviewer. Generate a structured set of interview questions for a candidate with the details below.
+
+Target Role: {targetRole}
+
+Resume Details:
+{resumeJson}
+
+GitHub Project Summary:
+{githubSummary}
+
+Instructions:
+Generate exactly 15 questions in total, structured as follows:
+- 5 PROJECT questions: Dive deep into the candidate's actual projects, code repositories, or technologies mentioned in their resume or GitHub profile. Reference specific projects or repositories by name and ask technical design, execution, or trade-off questions.
+- 5 TECHNICAL questions: Test the core technical skills, frameworks, and programming languages listed on their resume, aligned with the {targetRole}. Ask about implementation details, performance optimization, or fundamental concepts.
+- 5 HR / BEHAVIORAL questions: Standard professional and behavioral questions (e.g., handling conflicts, project management, career goals, situational questions) custom tailored to this person's background.
+
+Required Output JSON structure:
+{{
+  "questions": [
+    {{
+      "category": "PROJECT",
+      "text": "In your [Project Name], why did you choose to use [Technology] over [Alternative]?"
+    }},
+    ...
+  ]
+}}
+
+Ensure you only return the strict JSON structure. No markdown formatting.

@@ -1,0 +1,47 @@
+# Dependency directories
+node_modules/
+.venv/
+env/
+venv/
+ENV/
+
+# Next.js build output
+.next/
+out/
+build/
+dist/
+
+# Python cache & build
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.tox/
+
+# Databases
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# Environment variables & secrets
+.env
+.env.*
+!.env.example
+secrets.json
+
+# Storage / media / user uploads
+storage/resumes/*
+!storage/resumes/.gitkeep
+storage/audio/*
+!storage/audio/.gitkeep
+
+# IDEs & System files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

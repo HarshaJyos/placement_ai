@@ -1,0 +1,95 @@
+datasource db {
+  provider = "sqlite"
+}
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+model User {
+  id            String      @id @default(cuid())
+  fullName      String
+  email         String      @unique
+  passwordHash  String
+  phone         String?
+  college       String?
+  degree        String?
+  branch        String?
+  gradYear      Int?
+  githubUrl     String?
+  linkedinUrl   String?
+  preferredRole String?
+  role          String      @default("STUDENT") // "STUDENT" | "ADMIN"
+  createdAt     DateTime    @default(now())
+  resumes       Resume[]
+  interviews    Interview[]
+}
+
+model Resume {
+  id           String   @id @default(cuid())
+  userId       String
+  fileUrl      String
+  parsedJson   String?  // JSON string storing parsed skills, experience, score, etc.
+  score        Int?
+  createdAt    DateTime @default(now())
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model GithubProfile {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  username      String
+  summaryJson   String?  // JSON string of repositories, languages, features
+  fetchedAt     DateTime @default(now())
+}
+
+model Interview {
+  id            String          @id @default(cuid())
+  userId        String
+  targetRole    String
+  status        String          @default("PENDING") // "PENDING" | "IN_PROGRESS" | "COMPLETED"
+  createdAt     DateTime        @default(now())
+  completedAt   DateTime?
+  questions     Question[]
+  report        Report?
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Question {
+  id           String    @id @default(cuid())
+  interviewId  String
+  category     String    // "PROJECT" | "TECHNICAL" | "HR"
+  text         String
+  order        Int
+  interview    Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+  response     Response?
+}
+
+model Response {
+  id                 String   @id @default(cuid())
+  questionId         String   @unique
+  audioUrl           String?
+  transcript         String?
+  accuracyScore      Int?
+  clarityScore       Int?
+  completenessScore  Int?
+  communicationScore Int?
+  feedback           String?
+  question           Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+}
+
+model Report {
+  id                 String    @id @default(cuid())
+  interviewId        String    @unique
+  overallScore       Int
+  technicalScore     Int
+  communicationScore Int
+  projectScore       Int
+  hrScore            Int
+  strengths          String    // JSON array of strings
+  weaknesses         String    // JSON array of strings
+  suggestions        String    // JSON array of strings
+  createdAt          DateTime  @default(now())
+  interview          Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+}
