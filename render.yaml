@@ -6,7 +6,9 @@ envVarGroups:
   - name: placement-secrets
     envVars:
       - key: GEMINI_API_KEY
+        value: "change-me"
       - key: GITHUB_TOKEN
+        value: "change-me"
 
 services:
 
