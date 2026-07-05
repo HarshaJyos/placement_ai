@@ -3,6 +3,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List
 from services.llm_client import llm_client
+import httpx
 
 router = APIRouter()
 
@@ -89,11 +90,32 @@ async def evaluate_interview(request: InterviewEvaluationRequest):
     
     for idx, ans in enumerate(request.answers):
         audio_path = ans.audioPath
-        if not os.path.exists(audio_path):
-            print(f"Warning: Audio file not found at {audio_path}")
-            continue
-            
+        is_temp_file = False
+        
+        # Handle remote URL if it starts with http
+        if audio_path.startswith("http://") or audio_path.startswith("https://"):
+            try:
+                # Download file to a local temporary path
+                with httpx.Client() as client:
+                    res = client.get(audio_path)
+                    if res.status_code == 200:
+                        temp_filename = f"temp_eval_{os.urandom(8).hex()}.webm"
+                        temp_dir = os.path.join(os.getcwd(), "temp")
+                        os.makedirs(temp_dir, exist_ok=True)
+                        audio_path = os.path.join(temp_dir, temp_filename)
+                        
+                        with open(audio_path, "wb") as f:
+                            f.write(res.content)
+                        is_temp_file = True
+            except Exception as e:
+                print(f"Failed to fetch remote audio for evaluation: {str(e)}")
+                continue
+
         try:
+            if not os.path.exists(audio_path):
+                print(f"Warning: Audio file not found at {audio_path}")
+                continue
+                
             with open(audio_path, "rb") as af:
                 audio_bytes = af.read()
             
@@ -119,6 +141,13 @@ async def evaluate_interview(request: InterviewEvaluationRequest):
             contents.append(audio_part)
         except Exception as file_err:
             print(f"Error reading audio file {audio_path}: {file_err}")
+        finally:
+            # Clean up temporary file if downloaded
+            if is_temp_file and os.path.exists(audio_path):
+                try:
+                    os.remove(audio_path)
+                except Exception:
+                    pass
             
     try:
         response = llm_client.generate_multimodal_json(

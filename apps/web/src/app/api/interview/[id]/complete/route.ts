@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/db";
+import path from "path";
 
 export async function POST(
   req: Request,
@@ -67,11 +68,19 @@ export async function POST(
     // Map to answers format for the FastAPI batch evaluation
     const answersPayload = answeredQuestions.map((q) => {
       const resp = q.response!;
+      let audioPath = resp.audioUrl || "";
+      
+      // Construct remote download URL if running behind public URL, else pass local path
+      if (audioPath && process.env.NEXTAUTH_URL) {
+        const filename = path.basename(audioPath);
+        audioPath = `${process.env.NEXTAUTH_URL}/api/storage/audio/${filename}`;
+      }
+
       return {
         questionId: q.id,
         category: q.category,
         text: q.text,
-        audioPath: resp.audioUrl || "",
+        audioPath,
       };
     });
 
