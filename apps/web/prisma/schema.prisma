@@ -70,6 +70,7 @@ model Response {
   id                 String   @id @default(cuid())
   questionId         String   @unique
   audioUrl           String?
+  videoUrl           String?
   transcript         String?
   accuracyScore      Int?
   clarityScore       Int?

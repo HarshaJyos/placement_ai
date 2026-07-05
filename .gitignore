@@ -33,6 +33,7 @@ htmlcov/
 .env.*
 !.env.example
 secrets.json
+env
 
 # Storage / media / user uploads
 storage/resumes/*

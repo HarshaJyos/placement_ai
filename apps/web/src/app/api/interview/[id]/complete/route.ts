@@ -15,6 +15,29 @@ export async function POST(
     const userId = (session.user as any).id;
     const { id: interviewId } = await params;
 
+    // Fetch user details to find resume and github context
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        resumes: {
+          orderBy: { createdAt: "desc" },
+          take: 1,
+        },
+      },
+    });
+
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    const targetRole = user.preferredRole || "Software Engineer";
+    const resumeJson = user.resumes[0]?.parsedJson || "{}";
+
+    const githubProfile = await prisma.githubProfile.findUnique({
+      where: { userId },
+    });
+    const githubSummary = githubProfile?.summaryJson || "[]";
+
     // Fetch the interview with questions and responses
     const interview = await prisma.interview.findUnique({
       where: { id: interviewId },
@@ -41,34 +64,58 @@ export async function POST(
       );
     }
 
-    // Map to responses format for FastAPI
-    const responsesPayload = answeredQuestions.map((q) => {
+    // Map to answers format for the FastAPI batch evaluation
+    const answersPayload = answeredQuestions.map((q) => {
       const resp = q.response!;
       return {
+        questionId: q.id,
         category: q.category,
         text: q.text,
-        transcript: resp.transcript || "No transcript provided.",
-        accuracyScore: resp.accuracyScore || 0,
-        clarityScore: resp.clarityScore || 0,
-        completenessScore: resp.completenessScore || 0,
-        communicationScore: resp.communicationScore || 0,
+        audioPath: resp.audioUrl || "",
       };
     });
 
-    // Call Python FastAPI service /report/generate
+    // Call Python FastAPI service /report/evaluate-interview
     const aiServiceUrl = process.env.AI_SERVICE_URL || "http://127.0.0.1:8000";
-    const reportRes = await fetch(`${aiServiceUrl}/report/generate`, {
+    const reportRes = await fetch(`${aiServiceUrl}/report/evaluate-interview`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ responses: responsesPayload }),
+      body: JSON.stringify({
+        targetRole,
+        resumeJson,
+        githubSummary,
+        answers: answersPayload,
+      }),
     });
 
     if (!reportRes.ok) {
       const errorText = await reportRes.text();
-      throw new Error(`AI Service report generation failed: ${errorText}`);
+      throw new Error(`AI Service batch evaluation failed: ${errorText}`);
     }
 
-    const reportData = await reportRes.json();
+    const evalData = await reportRes.json();
+    const reportData = evalData.report;
+
+    if (!evalData.questions || !reportData) {
+      throw new Error("Invalid response format from AI Service batch evaluation");
+    }
+
+    // Update each response record with its transcription and individual scores in a transaction
+    await prisma.$transaction(
+      evalData.questions.map((qEval: any) =>
+        prisma.response.update({
+          where: { questionId: qEval.questionId },
+          data: {
+            transcript: qEval.transcript || "No transcript returned.",
+            accuracyScore: qEval.accuracy || 0,
+            clarityScore: qEval.clarity || 0,
+            completenessScore: qEval.completeness || 0,
+            communicationScore: qEval.communication || 0,
+            feedback: qEval.feedback || "",
+          },
+        })
+      )
+    );
 
     // Create or update the report inside DB
     const report = await prisma.report.upsert({

@@ -19,8 +19,10 @@ export default function InterviewPage({ params }: { params: Promise<{ id: string
   // Recording state
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
-  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
+  const [audioRecorder, setAudioRecorder] = useState<MediaRecorder | null>(null);
+  const [videoRecorder, setVideoRecorder] = useState<MediaRecorder | null>(null);
   const [audioChunks, setAudioChunks] = useState<Blob[]>([]);
+  const [videoChunks, setVideoChunks] = useState<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Submit / Processing state
@@ -29,13 +31,37 @@ export default function InterviewPage({ params }: { params: Promise<{ id: string
   const [responseSaved, setResponseSaved] = useState(false);
   const [tempAudioBlob, setTempAudioBlob] = useState<Blob | null>(null);
 
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+
   useEffect(() => {
     if (status === "unauthenticated") {
       router.push("/login");
     } else if (status === "authenticated") {
       fetchInterview();
+      initCamera();
     }
   }, [status]);
+
+  useEffect(() => {
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+      }
+    };
+  }, []);
+
+  const initCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+    } catch (err) {
+      console.error("Camera/Mic access error:", err);
+    }
+  };
 
   // Handle timer for recording
   useEffect(() => {
@@ -82,79 +108,96 @@ export default function InterviewPage({ params }: { params: Promise<{ id: string
   const startRecording = async () => {
     try {
       setAudioChunks([]);
+      setVideoChunks([]);
       setTranscript(null);
       setResponseSaved(false);
       setTempAudioBlob(null);
 
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream);
-      
-      recorder.ondataavailable = (event) => {
+      if (!streamRef.current) {
+        streamRef.current = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+        if (videoRef.current) {
+          videoRef.current.srcObject = streamRef.current;
+        }
+      }
+
+      const stream = streamRef.current;
+
+      // 1. Audio-only recording for Gemini evaluation
+      const audioStream = new MediaStream(stream.getAudioTracks());
+      const aRecorder = new MediaRecorder(audioStream, { mimeType: "audio/webm" });
+      aRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
           setAudioChunks((prev) => [...prev, event.data]);
         }
       };
+      aRecorder.start();
+      setAudioRecorder(aRecorder);
 
-      recorder.onstop = () => {
-        // Collect stream tracks and stop them
-        stream.getTracks().forEach((track) => track.stop());
+      // 2. Video + Audio recording for local visual tracking
+      const vRecorder = new MediaRecorder(stream, { mimeType: "video/webm" });
+      vRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          setVideoChunks((prev) => [...prev, event.data]);
+        }
       };
+      vRecorder.start();
+      setVideoRecorder(vRecorder);
 
-      recorder.start();
-      setMediaRecorder(recorder);
       setIsRecording(true);
     } catch (err) {
-      alert("Microphone access is required to answer interview questions.");
+      alert("Microphone and Camera access are required to start mock interview.");
     }
   };
 
   const stopRecording = () => {
-    if (mediaRecorder && isRecording) {
-      mediaRecorder.stop();
+    if (isRecording) {
+      if (audioRecorder) audioRecorder.stop();
+      if (videoRecorder) videoRecorder.stop();
       setIsRecording(false);
       
-      // Delay processing slightly to let ondataavailable fire and accumulate the chunk
+      // Delay processing slightly to let data accumulate
       setTimeout(() => {
-        processRecordedAudio();
-      }, 500);
+        processAndUploadAudioVideo();
+      }, 600);
     }
   };
 
-  // We use this effect to watch audioChunks and trigger process once we stop recording
-  const processRecordedAudio = () => {
-    setAudioChunks((currentChunks) => {
-      if (currentChunks.length === 0) return currentChunks;
-      const audioBlob = new Blob(currentChunks, { type: "audio/webm" });
-      setTempAudioBlob(audioBlob);
-      // Run transcription call
-      transcribeAudioOnly(audioBlob);
+  const processAndUploadAudioVideo = () => {
+    setAudioChunks((currAudio) => {
+      setVideoChunks((currVideo) => {
+        if (currAudio.length === 0) return [];
+        const audioBlob = new Blob(currAudio, { type: "audio/webm" });
+        const videoBlob = new Blob(currVideo, { type: "video/webm" });
+        setTempAudioBlob(audioBlob);
+        uploadResponse(audioBlob, videoBlob);
+        return [];
+      });
       return [];
     });
   };
 
-  const transcribeAudioOnly = async (audioBlob: Blob) => {
+  const uploadResponse = async (audioBlob: Blob, videoBlob: Blob) => {
     setIsProcessing(true);
     setError(null);
 
     const currentQuestion = interview.questions[currentIdx];
     const formData = new FormData();
-    formData.append("file", audioBlob, "response.webm");
+    formData.append("file", audioBlob, "response_audio.webm");
+    formData.append("video", videoBlob, "response_video.webm");
     formData.append("questionId", currentQuestion.id);
 
     try {
-      // Call standard save/answer which transcribes and evaluates on the backend
       const res = await fetch(`/api/interview/${interviewId}/answer`, {
         method: "POST",
         body: formData,
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to process audio response");
+      if (!res.ok) throw new Error(data.error || "Failed to upload answer");
 
-      setTranscript(data.response.transcript);
       setResponseSaved(true);
     } catch (err: any) {
-      setError(err.message || "An error occurred during transcription");
+      setError(err.message || "An error occurred while uploading your answer");
     } finally {
       setIsProcessing(false);
     }
@@ -165,7 +208,6 @@ export default function InterviewPage({ params }: { params: Promise<{ id: string
     setResponseSaved(false);
     setTempAudioBlob(null);
     
-    // Refresh interview state to hold the answers in memory
     fetchInterview().then(() => {
       if (currentIdx < interview.questions.length - 1) {
         setCurrentIdx((prev) => prev + 1);
@@ -266,10 +308,32 @@ export default function InterviewPage({ params }: { params: Promise<{ id: string
         <div className="w-full text-center space-y-8">
           
           {/* Question Text */}
-          <div className="min-h-[120px] flex items-center justify-center">
+          <div className="min-h-[100px] flex items-center justify-center">
             <h1 className="text-2xl md:text-3xl font-extrabold leading-relaxed text-slate-100 max-w-2xl px-4">
               &ldquo;{currentQuestion?.text}&rdquo;
             </h1>
+          </div>
+
+          {/* Webcam Preview */}
+          <div className="w-full max-w-md mx-auto aspect-video rounded-2xl overflow-hidden border border-slate-850 bg-slate-900/60 shadow-2xl relative">
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              className="w-full h-full object-cover transform -scale-x-100"
+            />
+            {isRecording && (
+              <div className="absolute top-4 left-4 flex items-center gap-2 px-3 py-1.5 rounded-full bg-rose-500/90 backdrop-blur-sm text-white text-[10px] font-bold uppercase tracking-wider animate-pulse">
+                <span className="w-2 h-2 rounded-full bg-white" />
+                Live Recording
+              </div>
+            )}
+            {!isRecording && (
+              <div className="absolute inset-0 bg-slate-950/20 backdrop-blur-[2px] pointer-events-none flex items-center justify-center">
+                <span className="text-xs text-slate-400 font-semibold bg-slate-900/80 px-3 py-1.5 rounded-xl border border-slate-800">Camera Feed Active</span>
+              </div>
+            )}
           </div>
 
           {/* Micro animation block */}
@@ -296,16 +360,16 @@ export default function InterviewPage({ params }: { params: Promise<{ id: string
                 {isRecording ? (
                   <button
                     onClick={stopRecording}
-                    className="w-24 h-24 rounded-full bg-rose-500 flex items-center justify-center text-white shadow-xl shadow-rose-950/40 hover:scale-105 active:scale-95 transition-all animate-pulse"
+                    className="w-20 h-20 rounded-full bg-rose-500 flex items-center justify-center text-white shadow-xl shadow-rose-950/40 hover:scale-105 active:scale-95 transition-all animate-pulse cursor-pointer"
                   >
-                    <Square size={32} />
+                    <Square size={24} />
                   </button>
                 ) : (
                   <button
                     onClick={startRecording}
-                    className="w-24 h-24 rounded-full bg-gradient-to-r from-violet-600 to-indigo-600 flex items-center justify-center text-white shadow-xl shadow-violet-950/40 hover:scale-105 active:scale-95 transition-all hover:shadow-violet-500/20"
+                    className="w-20 h-20 rounded-full bg-gradient-to-r from-violet-600 to-indigo-600 flex items-center justify-center text-white shadow-xl shadow-violet-950/40 hover:scale-105 active:scale-95 transition-all hover:shadow-violet-500/20 cursor-pointer"
                   >
-                    <Mic size={36} />
+                    <Mic size={28} />
                   </button>
                 )}
                 
@@ -317,11 +381,11 @@ export default function InterviewPage({ params }: { params: Promise<{ id: string
 
             {isProcessing && (
               <div className="flex flex-col items-center gap-3">
-                <div className="w-24 h-24 rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center text-violet-400">
-                  <Loader2 size={36} className="animate-spin" />
+                <div className="w-20 h-20 rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center text-violet-400">
+                  <Loader2 size={28} className="animate-spin" />
                 </div>
-                <span className="text-xs uppercase font-bold tracking-widest text-slate-400">
-                  Analyzing & Transcribing...
+                <span className="text-xs uppercase font-bold tracking-widest text-slate-400 animate-pulse text-center">
+                  {hasAnsweredCurrent && isLastQuestion ? "Evaluating entire interview & compiling report..." : "Uploading Response..."}
                 </span>
               </div>
             )}
@@ -333,7 +397,11 @@ export default function InterviewPage({ params }: { params: Promise<{ id: string
                 </div>
                 
                 <p className="text-slate-350 text-sm italic leading-relaxed">
-                  &ldquo;{currentTranscript}&rdquo;
+                  {currentTranscript ? (
+                    <span>&ldquo;{currentTranscript}&rdquo;</span>
+                  ) : (
+                    <span>Your answer has been saved successfully. Spoken responses will be batch-evaluated and scored at the very end of the interview.</span>
+                  )}
                 </p>
 
                 <div className="border-t border-slate-850 pt-4 flex justify-between items-center">

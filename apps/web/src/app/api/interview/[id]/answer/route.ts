@@ -49,7 +49,6 @@ export async function POST(
     const buffer = Buffer.from(await file.arrayBuffer());
 
     // Save audio file locally to storage/audio/
-    // Since process.cwd() is inside apps/web/, the storage folder is at ../../storage/audio
     const storageDir = path.resolve(process.cwd(), "..", "..", "storage", "audio");
     await mkdir(storageDir, { recursive: true });
 
@@ -59,87 +58,33 @@ export async function POST(
 
     await writeFile(filePath, buffer);
 
-    // Call Python FastAPI service /transcribe
-    const aiServiceUrl = process.env.AI_SERVICE_URL || "http://127.0.0.1:8000";
-    
-    let transcript = "No speech detected.";
-    try {
-      const transRes = await fetch(`${aiServiceUrl}/transcribe`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ audioUrl: filePath }),
-      });
+    // Save video file if present in formData
+    const videoFile = formData.get("video") as File | null;
+    let videoFilePath: string | null = null;
 
-      if (transRes.ok) {
-        const transJson = await transRes.json();
-        transcript = transJson.transcript || transcript;
-      } else {
-        console.error("FastAPI transcription failed, running fallback.");
-      }
-    } catch (transErr) {
-      console.error("Transcription connection error:", transErr);
+    if (videoFile) {
+      const videoBuffer = Buffer.from(await videoFile.arrayBuffer());
+      const videoStorageDir = path.resolve(process.cwd(), "..", "..", "storage", "video");
+      await mkdir(videoStorageDir, { recursive: true });
+      const videoExtension = path.extname(videoFile.name) || ".webm";
+      const videoFilename = `${questionId}_${Date.now()}${videoExtension}`;
+      videoFilePath = path.join(videoStorageDir, videoFilename);
+      await writeFile(videoFilePath, videoBuffer);
     }
 
-    // Call Python FastAPI service /evaluate
-    let evalJson = {
-      accuracy: 0,
-      clarity: 0,
-      completeness: 0,
-      communication: 0,
-      feedback: "Failed to connect to the evaluation service.",
-    };
-
-    try {
-      const evalRes = await fetch(`${aiServiceUrl}/evaluate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          questionText: question.text,
-          transcript,
-          category: question.category,
-        }),
-      });
-
-      if (evalRes.ok) {
-        evalJson = await evalRes.json();
-      } else {
-        console.error("FastAPI evaluation failed.");
-      }
-    } catch (evalErr) {
-      console.error("Evaluation connection error:", evalErr);
-    }
-
-    // Save/Update response in SQLite DB
+    // Save/Update response in SQLite DB with only the URLs
     const dbResponse = await prisma.response.upsert({
       where: { questionId },
       update: {
         audioUrl: filePath,
-        transcript,
-        accuracyScore: evalJson.accuracy,
-        clarityScore: evalJson.clarity,
-        completenessScore: evalJson.completeness,
-        communicationScore: evalJson.communication,
-        feedback: evalJson.feedback,
+        videoUrl: videoFilePath,
       },
       create: {
         questionId,
         audioUrl: filePath,
-        transcript,
-        accuracyScore: evalJson.accuracy,
-        clarityScore: evalJson.clarity,
-        completenessScore: evalJson.completeness,
-        communicationScore: evalJson.communication,
-        feedback: evalJson.feedback,
+        videoUrl: videoFilePath,
       },
     });
-
-    // Update interview status to IN_PROGRESS (if it was PENDING)
-    if (interview.status === "PENDING") {
-      await prisma.interview.update({
-        where: { id: interviewId },
-        data: { status: "IN_PROGRESS" },
-      });
-    }
 
     return NextResponse.json({
       message: "Answer processed successfully",
