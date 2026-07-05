@@ -1,577 +1,537 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { Mic, Square, Loader2, ChevronRight, RefreshCw, Award, Sparkles, Check } from "lucide-react";
+import { Mic, Square, Loader2, RefreshCw, Award, Volume2, ChevronRight } from "lucide-react";
 
+// ─── Types ───────────────────────────────────────────────────────────────────
+interface Question { id: string; text: string; category: string; order: number; response?: any }
+interface Interview  { id: string; targetRole: string; questions: Question[] }
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+function fmtTime(s: number) {
+  const m = Math.floor(s / 60);
+  const ss = s % 60;
+  return `${m}:${ss < 10 ? "0" : ""}${ss}`;
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
 export default function InterviewPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: interviewId } = React.use(params);
-  const { data: session, status } = useSession();
+  const { status } = useSession();
   const router = useRouter();
 
-  // Interview state
-  const [interview, setInterview] = useState<any>(null);
-  const [currentIdx, setCurrentIdx] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // ── interview data ──────────────────────────────────────────────────
+  const [interview, setInterview] = useState<Interview | null>(null);
+  const interviewRef = useRef<Interview | null>(null); // stable ref for async access
 
-  // Live session states
-  const [interviewStarted, setInterviewStarted] = useState(false);
-  const [isAiSpeaking, setIsAiSpeaking] = useState(false);
+  // ── UI phase ────────────────────────────────────────────────────────
+  const [phase, setPhase] = useState<
+    "loading" | "error" | "ready" | "ai_speaking" | "recording" | "saving" | "done"
+  >("loading");
+  const [qIdx, setQIdx]   = useState(0);
+  const qIdxRef           = useRef(0);          // stable ref
+  const [recTime, setRecTime] = useState(0);
+  const [errMsg, setErrMsg]   = useState<string | null>(null);
 
-  // Recording state
-  const [isRecording, setIsRecording] = useState(false);
-  const [recordingTime, setRecordingTime] = useState(0);
-  const isRecordingRef = useRef(false);
-  const audioRecorderRef = useRef<MediaRecorder | null>(null);
-  const videoRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
-  const videoChunksRef = useRef<Blob[]>([]);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  // ── media refs ──────────────────────────────────────────────────────
+  const videoRef        = useRef<HTMLVideoElement>(null);
+  const streamRef       = useRef<MediaStream | null>(null);
+  const aRecRef         = useRef<MediaRecorder | null>(null);
+  const vRecRef         = useRef<MediaRecorder | null>(null);
+  const aChunks         = useRef<Blob[]>([]);
+  const vChunks         = useRef<Blob[]>([]);
+  const aStoppedRef     = useRef(false);   // track both onstop events
+  const vStoppedRef     = useRef(false);
+  const timerRef        = useRef<ReturnType<typeof setInterval> | null>(null);
+  const phaseRef        = useRef(phase);   // avoid stale closures in VAD
 
-  // Submit / Processing state
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [transcript, setTranscript] = useState<string | null>(null);
-  const [responseSaved, setResponseSaved] = useState(false);
-  const [tempAudioBlob, setTempAudioBlob] = useState<Blob | null>(null);
+  // ── VAD refs ────────────────────────────────────────────────────────
+  const actxRef         = useRef<AudioContext | null>(null);
+  const analyserRef     = useRef<AnalyserNode | null>(null);
+  const rafRef          = useRef<number | null>(null);
 
-  // Webcam & Audio analysis refs
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const analyserRef = useRef<AnalyserNode | null>(null);
-  const vadIntervalRef = useRef<number | null>(null);
+  // Keep phaseRef in sync
+  useEffect(() => { phaseRef.current = phase; }, [phase]);
 
-  // Sync index and questions for safe async access
-  const currentIdxRef = useRef(0);
-  const questionsRef = useRef<any[]>([]);
-
+  // ── Auth guard ──────────────────────────────────────────────────────
   useEffect(() => {
-    if (status === "unauthenticated") {
-      router.push("/login");
-    } else if (status === "authenticated") {
-      fetchInterview();
-      initCamera();
-    }
+    if (status === "unauthenticated") router.push("/login");
+    if (status === "authenticated")  { fetchInterview(); initCamera(); }
   }, [status]);
 
-  useEffect(() => {
-    return () => {
-      // Shutdown camera tracks on unmount
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((track) => track.stop());
-      }
-      stopSilenceDetection();
-      if (typeof window !== "undefined" && window.speechSynthesis) {
-        window.speechSynthesis.cancel();
-      }
-    };
+  // ── Cleanup on unmount ──────────────────────────────────────────────
+  useEffect(() => () => {
+    stopVAD();
+    window.speechSynthesis?.cancel();
+    streamRef.current?.getTracks().forEach(t => t.stop());
+    if (timerRef.current) clearInterval(timerRef.current);
   }, []);
 
+  // ── Recording timer ─────────────────────────────────────────────────
+  useEffect(() => {
+    if (phase === "recording") {
+      setRecTime(0);
+      timerRef.current = setInterval(() => setRecTime(p => p + 1), 1000);
+    } else {
+      if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+    }
+  }, [phase]);
+
+  // ── Camera init ─────────────────────────────────────────────────────
   const initCamera = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
       streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
-    } catch (err) {
-      console.error("Camera/Mic access error:", err);
-      setError("Camera and Microphone permissions are required for this live interview.");
+      if (videoRef.current) videoRef.current.srcObject = stream;
+    } catch {
+      setErrMsg("Camera and Microphone access is required. Please allow permissions and refresh.");
     }
   };
 
-  // Handle timer for recording
-  useEffect(() => {
-    if (isRecording) {
-      timerRef.current = setInterval(() => {
-        setRecordingTime((prev) => prev + 1);
-      }, 1000);
-    } else {
-      if (timerRef.current) clearInterval(timerRef.current);
-      setRecordingTime(0);
-    }
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, [isRecording]);
-
+  // ── Fetch interview ─────────────────────────────────────────────────
   const fetchInterview = async () => {
     try {
-      setLoading(true);
-      const res = await fetch(`/api/interview/${interviewId}`);
+      const res  = await fetch(`/api/interview/${interviewId}`);
       const data = await res.json();
-
       if (!res.ok) throw new Error(data.error || "Failed to load interview");
 
+      interviewRef.current = data.interview;
       setInterview(data.interview);
 
-      // Find the first unanswered question
-      const questions = data.interview.questions || [];
-      questionsRef.current = questions;
-      const unansweredIdx = questions.findIndex((q: any) => !q.response);
-      
-      if (unansweredIdx !== -1) {
-        setCurrentIdx(unansweredIdx);
-        currentIdxRef.current = unansweredIdx;
-      } else {
-        setCurrentIdx(questions.length - 1);
-        currentIdxRef.current = questions.length - 1;
-      }
-    } catch (err: any) {
-      setError(err.message || "An error occurred");
-    } finally {
-      setLoading(false);
+      const qs = (data.interview.questions as Question[]) || [];
+      const first = qs.findIndex(q => !q.response);
+      const idx   = first === -1 ? qs.length - 1 : first;
+      qIdxRef.current = idx;
+      setQIdx(idx);
+      setPhase("ready");
+    } catch (e: any) {
+      setErrMsg(e.message || "Failed to load interview");
+      setPhase("error");
     }
   };
 
-  const speakQuestion = (text: string, onEnd: () => void) => {
-    if (typeof window !== "undefined" && window.speechSynthesis) {
-      window.speechSynthesis.cancel();
-      setIsAiSpeaking(true);
+  // ── TTS speak ───────────────────────────────────────────────────────
+  const speak = useCallback((text: string, onDone: () => void) => {
+    if (!window.speechSynthesis) { onDone(); return; }
+    window.speechSynthesis.cancel();
+    setPhase("ai_speaking");
 
-      const cleanText = text.replace(/[*_`#]/g, "");
-      const utterance = new SpeechSynthesisUtterance(cleanText);
-      const voices = window.speechSynthesis.getVoices();
-      // Prefer Google or clear English voices
-      const englishVoice = voices.find(
-        (v) => v.lang.startsWith("en-") && v.name.includes("Google")
-      ) || voices.find((v) => v.lang.startsWith("en-"));
-      
-      if (englishVoice) {
-        utterance.voice = englishVoice;
-      }
-      
-      utterance.rate = 1.05; // slightly faster for responsiveness
-      utterance.onend = () => {
-        setIsAiSpeaking(false);
-        onEnd();
-      };
-      utterance.onerror = (e) => {
-        setIsAiSpeaking(false);
-        if (e.error === "interrupted" || e.error === "canceled") {
+    const utt    = new SpeechSynthesisUtterance(text.replace(/[*_`#]/g, ""));
+    const voices = window.speechSynthesis.getVoices();
+    const voice  = voices.find(v => v.lang.startsWith("en-") && v.name.includes("Google"))
+                || voices.find(v => v.lang.startsWith("en-"));
+    if (voice) utt.voice = voice;
+    utt.rate  = 1.0;
+    utt.pitch = 1;
+
+    utt.onend   = () => onDone();
+    utt.onerror = (e) => {
+      if (e.error === "interrupted" || e.error === "canceled") return;
+      onDone(); // fallback
+    };
+    window.speechSynthesis.speak(utt);
+  }, []);
+
+  // ── VAD (voice activity detection) ─────────────────────────────────
+  const stopVAD = () => {
+    if (rafRef.current)   { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
+    if (actxRef.current && actxRef.current.state !== "closed") actxRef.current.close();
+    actxRef.current  = null;
+    analyserRef.current = null;
+  };
+
+  const startVAD = (stream: MediaStream, onSilence: () => void) => {
+    stopVAD();
+    try {
+      const AC   = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AC) return;
+      const ctx  = new AC();
+      const src  = ctx.createMediaStreamSource(stream);
+      const an   = ctx.createAnalyser();
+      an.fftSize = 512;
+      src.connect(an);
+      actxRef.current  = ctx;
+      analyserRef.current = an;
+
+      const buf   = new Uint8Array(an.frequencyBinCount);
+      const THR   = 12;        // amplitude threshold
+      const WAIT  = 3000;      // ms of silence before auto-stop
+      let silStart = Date.now();
+      let hasSpokeOnce = false;
+
+      const tick = () => {
+        if (!analyserRef.current) return;
+        analyserRef.current.getByteFrequencyData(buf);
+        const avg = buf.reduce((a, b) => a + b, 0) / buf.length;
+
+        if (avg > THR) {
+          hasSpokeOnce = true;
+          silStart = Date.now();
+        } else if (hasSpokeOnce && Date.now() - silStart > WAIT) {
+          stopVAD();
+          onSilence();
           return;
         }
-        console.error("Speech error:", e);
-        onEnd();
+        rafRef.current = requestAnimationFrame(tick);
       };
-      
-      window.speechSynthesis.speak(utterance);
-    } else {
-      onEnd();
-    }
-  };
-
-  const startSilenceDetection = (stream: MediaStream, onSilence: () => void) => {
-    try {
-      stopSilenceDetection();
-      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-      if (!AudioContextClass) return;
-
-      const audioCtx = new AudioContextClass();
-      const source = audioCtx.createMediaStreamSource(stream);
-      const analyser = audioCtx.createAnalyser();
-      analyser.fftSize = 512;
-      source.connect(analyser);
-
-      audioContextRef.current = audioCtx;
-      analyserRef.current = analyser;
-
-      const bufferLength = analyser.frequencyBinCount;
-      const dataArray = new Uint8Array(bufferLength);
-
-      const SILENCE_THRESHOLD = 15;
-      const SILENCE_DURATION = 2800; // 2.8 seconds of silence to proceed
-      let silenceStart = Date.now();
-
-      const checkVolume = () => {
-        if (!analyserRef.current) return;
-        analyserRef.current.getByteFrequencyData(dataArray);
-        
-        let total = 0;
-        for (let i = 0; i < bufferLength; i++) {
-          total += dataArray[i];
-        }
-        const average = total / bufferLength;
-
-        if (average > SILENCE_THRESHOLD) {
-          silenceStart = Date.now(); // user is speaking
-        } else {
-          if (Date.now() - silenceStart > SILENCE_DURATION) {
-            stopSilenceDetection();
-            onSilence();
-            return;
-          }
-        }
-        vadIntervalRef.current = requestAnimationFrame(checkVolume);
-      };
-
-      vadIntervalRef.current = requestAnimationFrame(checkVolume);
+      rafRef.current = requestAnimationFrame(tick);
     } catch (err) {
       console.error("VAD error:", err);
     }
   };
 
-  const stopSilenceDetection = () => {
-    if (vadIntervalRef.current) {
-      cancelAnimationFrame(vadIntervalRef.current);
-      vadIntervalRef.current = null;
-    }
-    if (audioContextRef.current) {
-      if (audioContextRef.current.state !== "closed") {
-        audioContextRef.current.close();
+  // ── Recording ───────────────────────────────────────────────────────
+  const startRecording = useCallback(async (capturedQId: string) => {
+    if (phaseRef.current === "recording") return; // guard
+
+    // Ensure stream is alive
+    if (!streamRef.current || streamRef.current.getTracks().some(t => t.readyState === "ended")) {
+      try {
+        const s = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+        streamRef.current = s;
+        if (videoRef.current) videoRef.current.srcObject = s;
+      } catch {
+        setErrMsg("Microphone access was denied. Please refresh and allow permissions.");
+        return;
       }
-      audioContextRef.current = null;
     }
-    analyserRef.current = null;
-  };
 
-  const startRecording = async () => {
-    try {
-      if (isRecordingRef.current) return;
+    const stream = streamRef.current!;
+    aChunks.current  = [];
+    vChunks.current  = [];
+    aStoppedRef.current = false;
+    vStoppedRef.current = false;
 
-      audioChunksRef.current = [];
-      videoChunksRef.current = [];
-      setTranscript(null);
-      setResponseSaved(false);
-      setTempAudioBlob(null);
+    const onBothStopped = () => {
+      const audio = new Blob(aChunks.current, { type: "audio/webm" });
+      const video = new Blob(vChunks.current, { type: "video/webm" });
+      uploadAnswer(capturedQId, audio, video);
+    };
 
-      if (!streamRef.current) {
-        streamRef.current = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
-        if (videoRef.current) {
-          videoRef.current.srcObject = streamRef.current;
-        }
-      }
+    // Audio recorder (for Gemini evaluation)
+    const audioOnly = new MediaStream(stream.getAudioTracks());
+    const aRec = new MediaRecorder(audioOnly, { mimeType: "audio/webm" });
+    aRec.ondataavailable = e => { if (e.data.size > 0) aChunks.current.push(e.data); };
+    aRec.onstop = () => {
+      aStoppedRef.current = true;
+      if (vStoppedRef.current) onBothStopped();
+    };
 
-      const stream = streamRef.current;
-      const questionId = questionsRef.current[currentIdxRef.current]?.id || "";
+    // Video recorder (for local storage)
+    const vRec = new MediaRecorder(stream, { mimeType: "video/webm" });
+    vRec.ondataavailable = e => { if (e.data.size > 0) vChunks.current.push(e.data); };
+    vRec.onstop = () => {
+      vStoppedRef.current = true;
+      if (aStoppedRef.current) onBothStopped();
+    };
 
-      const checkAndUpload = () => {
-        const aRec = audioRecorderRef.current;
-        const vRec = videoRecorderRef.current;
-        if ((!aRec || aRec.state === "inactive") && (!vRec || vRec.state === "inactive")) {
-          const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
-          const videoBlob = new Blob(videoChunksRef.current, { type: "video/webm" });
-          setTempAudioBlob(audioBlob);
-          uploadResponse(audioBlob, videoBlob, questionId);
-        }
-      };
+    aRecRef.current = aRec;
+    vRecRef.current = vRec;
+    aRec.start();
+    vRec.start();
+    setPhase("recording");
 
-      // 1. Audio-only recording for Gemini evaluation
-      const audioStream = new MediaStream(stream.getAudioTracks());
-      const aRecorder = new MediaRecorder(audioStream, { mimeType: "audio/webm" });
-      aRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
-        }
-      };
-      aRecorder.onstop = checkAndUpload;
-      audioRecorderRef.current = aRecorder;
+    // VAD auto-stop
+    startVAD(stream, () => stopRecording());
+  }, []);
 
-      // 2. Video + Audio recording for local storage
-      const vRecorder = new MediaRecorder(stream, { mimeType: "video/webm" });
-      vRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          videoChunksRef.current.push(event.data);
-        }
-      };
-      vRecorder.onstop = checkAndUpload;
-      videoRecorderRef.current = vRecorder;
+  const stopRecording = useCallback(() => {
+    if (phaseRef.current !== "recording") return;
+    setPhase("saving");
+    stopVAD();
+    if (aRecRef.current?.state !== "inactive") aRecRef.current?.stop();
+    if (vRecRef.current?.state !== "inactive") vRecRef.current?.stop();
+  }, []);
 
-      // Start both
-      aRecorder.start();
-      vRecorder.start();
+  // ── Upload answer ────────────────────────────────────────────────────
+  const uploadAnswer = async (questionId: string, audio: Blob, video: Blob) => {
+    setPhase("saving");
+    setErrMsg(null);
 
-      isRecordingRef.current = true;
-      setIsRecording(true);
-
-      // Start Silence Auto-detection
-      startSilenceDetection(stream, () => {
-        stopRecording();
-      });
-    } catch (err) {
-      alert("Microphone and Camera access are required to start mock interview.");
-    }
-  };
-
-  const stopRecording = () => {
-    if (!isRecordingRef.current) return;
-    isRecordingRef.current = false;
-    setIsRecording(false);
-    
-    stopSilenceDetection();
-    
-    if (audioRecorderRef.current && audioRecorderRef.current.state !== "inactive") {
-      audioRecorderRef.current.stop();
-    }
-    if (videoRecorderRef.current && videoRecorderRef.current.state !== "inactive") {
-      videoRecorderRef.current.stop();
-    }
-  };
-
-  const uploadResponse = async (audioBlob: Blob, videoBlob: Blob, questionId: string) => {
-    setIsProcessing(true);
-    setError(null);
-
-    const formData = new FormData();
-    formData.append("file", audioBlob, "response_audio.webm");
-    formData.append("video", videoBlob, "response_video.webm");
-    formData.append("questionId", questionId);
+    const form = new FormData();
+    form.append("file",       audio, "audio.webm");
+    form.append("video",      video, "video.webm");
+    form.append("questionId", questionId);
 
     try {
-      const res = await fetch(`/api/interview/${interviewId}/answer`, {
-        method: "POST",
-        body: formData,
-      });
-
+      const res  = await fetch(`/api/interview/${interviewId}/answer`, { method: "POST", body: form });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to upload answer");
+      if (!res.ok) throw new Error(data.error || "Failed to save answer");
 
-      setResponseSaved(true);
+      const iv  = interviewRef.current!;
+      const cur = qIdxRef.current;
 
-      // Auto progress flow - safe check with Refs
-      if (currentIdxRef.current < questionsRef.current.length - 1) {
+      if (cur < iv.questions.length - 1) {
+        // Move to next question
+        const nextIdx = cur + 1;
+        qIdxRef.current = nextIdx;
+        setQIdx(nextIdx);
+
+        // Brief pause then speak next question
         setTimeout(() => {
-          handleNextQuestionAuto();
-        }, 1200);
+          const nextQ = interviewRef.current!.questions[nextIdx];
+          speak(nextQ.text, () => startRecording(nextQ.id));
+        }, 600);
       } else {
-        setTimeout(() => {
-          handleCompleteInterview();
-        }, 1200);
+        // Last question — finish interview
+        finishInterview();
       }
-    } catch (err: any) {
-      setError(err.message || "An error occurred while uploading your answer");
-    } finally {
-      setIsProcessing(false);
+    } catch (e: any) {
+      setErrMsg(e.message || "Failed to save your answer. Please try again.");
+      setPhase("recording"); // allow retry
     }
   };
 
-  const handleNextQuestionAuto = () => {
-    setTranscript(null);
-    setResponseSaved(false);
-    setTempAudioBlob(null);
-    
-    // Update ref immediately to prevent race conditions during setTimeouts
-    const newIdx = currentIdxRef.current + 1;
-    currentIdxRef.current = newIdx;
-    setCurrentIdx(newIdx);
-
-    if (newIdx < questionsRef.current.length) {
-      setTimeout(() => {
-        speakQuestion(questionsRef.current[newIdx].text, () => {
-          startRecording();
-        });
-      }, 400);
-    }
-  };
-
-  const handleCompleteInterview = async () => {
-    setIsProcessing(true);
+  // ── Finish interview ─────────────────────────────────────────────────
+  const finishInterview = async () => {
+    setPhase("done");
     try {
-      const res = await fetch(`/api/interview/${interviewId}/complete`, {
-        method: "POST",
-      });
+      const res  = await fetch(`/api/interview/${interviewId}/complete`, { method: "POST" });
       const data = await res.json();
-
-      if (!res.ok) throw new Error(data.error || "Failed to generate report");
-
+      if (!res.ok) throw new Error(data.error || "Could not generate report");
       router.push(`/report/${interviewId}`);
-    } catch (err: any) {
-      setError(err.message || "An error occurred while compiling the final report");
-      setIsProcessing(false);
+    } catch (e: any) {
+      setErrMsg(e.message || "Failed to generate report. Please refresh the page.");
+      setPhase("error");
     }
   };
 
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
+  // ── Begin interview (user presses Start) ────────────────────────────
+  const beginInterview = () => {
+    const iv = interviewRef.current;
+    if (!iv) return;
+    const q = iv.questions[qIdxRef.current];
+    if (!q) return;
+    speak(q.text, () => startRecording(q.id));
   };
 
-  if (loading) {
-    return (
-      <div className="flex-1 flex flex-col justify-center items-center bg-slate-950 text-slate-400">
-        <Loader2 size={36} className="animate-spin text-violet-500 mb-4" />
-        <p>Loading live interview session...</p>
-      </div>
-    );
-  }
+  // ── Repeat current question ─────────────────────────────────────────
+  const repeatQuestion = () => {
+    const iv = interviewRef.current;
+    if (!iv) return;
+    const q = iv.questions[qIdxRef.current];
+    if (!q) return;
+    stopVAD();
+    if (phaseRef.current === "recording") {
+      // stop current recording silently, no upload
+      aRecRef.current?.stop();
+      vRecRef.current?.stop();
+      aStoppedRef.current = true;
+      vStoppedRef.current = true;
+    }
+    speak(q.text, () => startRecording(q.id));
+  };
 
-  if (error && !interview) {
-    return (
-      <div className="flex-1 flex flex-col justify-center items-center bg-slate-950 text-slate-400 p-6 text-center">
-        <div className="bg-rose-500/10 border border-rose-500/20 text-rose-400 rounded-2xl p-8 max-w-md">
-          <h3 className="font-bold text-lg mb-2">Access Error</h3>
-          <p className="text-sm mb-6">{error}</p>
-          <button
-            onClick={fetchInterview}
-            className="px-6 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-200 text-sm font-semibold hover:border-slate-700 transition-colors"
-          >
-            Retry Connection
-          </button>
-        </div>
-      </div>
-    );
-  }
+  // ── Derived values ───────────────────────────────────────────────────
+  const qs          = interview?.questions ?? [];
+  const currentQ    = qs[qIdx];
+  const total       = qs.length;
+  const pct         = total > 0 ? Math.round(((qIdx + 1) / total) * 100) : 0;
+  const catColor: Record<string, string> = {
+    PROJECT:   "bg-violet-600",
+    TECHNICAL: "bg-blue-600",
+    HR:        "bg-teal-600",
+  };
 
-  const questions = interview.questions || [];
-  const currentQuestion = questions[currentIdx];
-  const progressPercent = Math.round(((currentIdx) / questions.length) * 100);
-  const isLastQuestion = currentIdx === questions.length - 1;
-  const existingResponse = currentQuestion?.response;
-  const hasAnsweredCurrent = responseSaved || !!existingResponse;
-  const currentTranscript = transcript || existingResponse?.transcript;
+  // ── Phase label & color for status pill ────────────────────────────
+  const statusPill = () => {
+    if (phase === "ai_speaking") return { label: "AI Speaking", cls: "bg-violet-600/90 animate-pulse" };
+    if (phase === "recording")   return { label: `🔴 Listening  ${fmtTime(recTime)}`, cls: "bg-rose-600/90 animate-pulse" };
+    if (phase === "saving")      return { label: "Saving...", cls: "bg-amber-600/80" };
+    if (phase === "done")        return { label: "Analyzing...", cls: "bg-teal-600/80" };
+    return null;
+  };
+  const pill = statusPill();
+
+  // ─── Render ──────────────────────────────────────────────────────────
+  if (phase === "loading") return (
+    <div className="h-screen bg-slate-950 flex items-center justify-center flex-col gap-4 text-slate-400">
+      <Loader2 size={40} className="animate-spin text-violet-500" />
+      <p className="text-sm">Loading your interview session...</p>
+    </div>
+  );
+
+  if (phase === "error") return (
+    <div className="h-screen bg-slate-950 flex items-center justify-center p-6">
+      <div className="max-w-md w-full bg-rose-950/30 border border-rose-800/50 rounded-2xl p-8 text-center">
+        <h2 className="text-rose-400 font-bold text-xl mb-3">Something went wrong</h2>
+        <p className="text-slate-400 text-sm mb-6">{errMsg}</p>
+        <button onClick={fetchInterview} className="px-6 py-2.5 rounded-xl bg-slate-800 border border-slate-700 text-slate-200 text-sm font-semibold hover:border-slate-500 transition-colors">
+          Retry
+        </button>
+      </div>
+    </div>
+  );
 
   return (
-    <div className="flex-1 flex flex-col relative overflow-hidden bg-slate-950 h-screen w-screen">
-      {/* Fullscreen Webcam Video */}
-      <div className="absolute inset-0 w-full h-full z-0 bg-slate-950">
-        <video
-          ref={videoRef}
-          autoPlay
-          playsInline
-          muted
-          className="w-full h-full object-cover transform -scale-x-100"
-        />
-        {/* Dark Vignette Overlay */}
-        <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/20 to-slate-950/60 pointer-events-none" />
-      </div>
+    <div className="h-screen w-screen bg-[#1a1a2e] flex flex-col overflow-hidden select-none">
 
-      {/* Landing Start Screen Overlay */}
-      {!interviewStarted && (
-        <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center z-50 p-6">
-          <div className="max-w-md w-full bg-slate-900/60 border border-slate-800 backdrop-blur-xl rounded-3xl p-8 text-center space-y-6 shadow-2xl">
-            <h1 className="text-3xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-violet-400 via-indigo-400 to-teal-400">
-              Live AI Interview
-            </h1>
-            <p className="text-slate-350 text-sm leading-relaxed font-medium">
-              You are about to begin a live interactive simulation for the role of <strong className="text-violet-400">{interview?.targetRole || "Software Engineer"}</strong>.
-            </p>
-            <div className="bg-slate-950/50 rounded-2xl p-4 border border-slate-850 text-left space-y-2.5 text-xs text-slate-400 leading-normal">
-              <p className="flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-teal-400" />
-                The AI will read each question aloud.
-              </p>
-              <p className="flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-teal-400" />
-                Speak your answer naturally when the mic turns on.
-              </p>
-              <p className="flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-teal-400" />
-                The system will auto-detect silence and move to the next question.
-              </p>
-            </div>
-            <button
-              onClick={() => {
-                setInterviewStarted(true);
-                if (questionsRef.current.length > 0) {
-                  const firstQuestion = questionsRef.current[currentIdxRef.current];
-                  if (firstQuestion) {
-                    speakQuestion(firstQuestion.text, () => {
-                      startRecording();
-                    });
-                  }
-                }
-              }}
-              className="w-full py-4 rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-bold text-sm shadow-lg shadow-violet-500/25 active:scale-[0.98] transition-all cursor-pointer"
-            >
-              Begin Live Interview
-            </button>
-          </div>
+      {/* ── TOP BAR ─────────────────────────────────────────────── */}
+      <header className="flex items-center justify-between px-5 py-3 bg-[#16213e]/90 border-b border-white/5 backdrop-blur-sm z-20 shrink-0">
+        <div className="flex items-center gap-3">
+          <div className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
+          <span className="text-sm font-semibold text-white">AI Interview</span>
+          <span className="text-slate-400 text-xs">·</span>
+          <span className="text-slate-400 text-xs font-medium">{interview?.targetRole}</span>
         </div>
-      )}
 
-      {/* Floating Status Indicators (Top Bar) */}
-      <header className="absolute top-0 inset-x-0 bg-gradient-to-b from-slate-950/80 to-transparent px-6 py-4 flex items-center justify-between z-10">
         <div className="flex items-center gap-3">
-          <span className="text-sm font-semibold text-slate-200">
-            AI Live Interview — {interview?.targetRole}
-          </span>
-        </div>
-        <div className="flex items-center gap-3">
-          {/* Status Badge */}
-          {isAiSpeaking && (
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-violet-600/80 backdrop-blur-sm border border-violet-500/30 text-white text-xs font-semibold animate-pulse">
-              <span className="w-2 h-2 rounded-full bg-white animate-ping" />
-              AI Speaking...
-            </div>
+          {pill && (
+            <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-white text-xs font-semibold ${pill.cls}`}>
+              {pill.label}
+            </span>
           )}
-          {isRecording && (
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-rose-600/80 backdrop-blur-sm border border-rose-500/30 text-white text-xs font-semibold animate-pulse">
-              <span className="w-2 h-2 rounded-full bg-white" />
-              Listening...
-            </div>
-          )}
-          {isProcessing && (
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-800/80 backdrop-blur-sm border border-slate-750 text-slate-200 text-xs font-semibold">
-              <Loader2 size={12} className="animate-spin text-teal-400" />
-              {isLastQuestion && responseSaved ? "Analyzing..." : "Saving..."}
-            </div>
-          )}
-          <span className="text-slate-350 text-xs font-semibold bg-slate-900/60 px-3 py-1.5 rounded-full border border-slate-850/50">
-            Question {currentIdx + 1} of {questions.length}
+          {/* Question counter */}
+          <span className="text-xs text-slate-400 bg-white/5 border border-white/10 px-3 py-1 rounded-full font-mono">
+            Q {qIdx + 1} / {total}
           </span>
         </div>
       </header>
 
-      {/* Progress bar overlay */}
-      <div className="absolute top-[64px] inset-x-0 h-1 bg-slate-950/40 z-10">
-        <div
-          className="h-full bg-gradient-to-r from-violet-500 to-teal-400 transition-all duration-500"
-          style={{ width: `${progressPercent}%` }}
-        />
+      {/* ── PROGRESS BAR ────────────────────────────────────────── */}
+      <div className="h-0.5 bg-white/5 shrink-0">
+        <div className="h-full bg-gradient-to-r from-violet-500 to-cyan-400 transition-all duration-700 ease-out" style={{ width: `${pct}%` }} />
       </div>
 
-      {/* Centered Glassmorphic Question Card (Bottom Area) */}
-      <div className="absolute bottom-10 inset-x-0 px-6 flex justify-center z-10">
-        <div className="max-w-2xl w-full bg-slate-950/60 border border-slate-800/80 backdrop-blur-xl rounded-3xl p-6 md:p-8 space-y-6 shadow-2xl relative">
-          
-          {/* Category Tag */}
-          <div className="absolute top-[-14px] left-8 bg-gradient-to-r from-violet-600 to-indigo-600 px-3 py-1 rounded-xl text-white text-[10px] font-bold uppercase tracking-wider shadow-md">
-            {currentQuestion?.category}
+      {/* ── MAIN AREA (Zoom-style) ───────────────────────────────── */}
+      <main className="flex-1 flex gap-3 p-3 overflow-hidden min-h-0">
+
+        {/* ── LEFT: Webcam (large) ─────────────────────────────── */}
+        <div className="flex-1 relative rounded-2xl overflow-hidden bg-slate-900 min-w-0">
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted
+            className="w-full h-full object-cover scale-x-[-1]"
+          />
+          {/* Name label */}
+          <div className="absolute bottom-3 left-3 bg-black/60 backdrop-blur px-3 py-1 rounded-lg text-white text-xs font-semibold">
+            You
           </div>
-
-          <div className="space-y-4">
-            {/* Question Text */}
-            <div className="min-h-[60px] flex items-center justify-center">
-              <h1 className="text-xl md:text-2xl font-bold leading-relaxed text-slate-100 text-center">
-                &ldquo;{currentQuestion?.text}&rdquo;
-              </h1>
+          {/* Recording dot */}
+          {phase === "recording" && (
+            <div className="absolute top-3 right-3 flex items-center gap-1.5 bg-red-600/80 backdrop-blur px-2.5 py-1 rounded-full">
+              <div className="w-2 h-2 rounded-full bg-white animate-ping" />
+              <span className="text-white text-[10px] font-bold">{fmtTime(recTime)}</span>
             </div>
+          )}
+        </div>
 
-            {/* Bottom Actions Row */}
-            <div className="border-t border-slate-800/60 pt-4 flex justify-between items-center text-xs">
-              <button
-                onClick={() => {
-                  stopSilenceDetection();
-                  const curQuestion = questionsRef.current[currentIdxRef.current];
-                  if (curQuestion) {
-                    speakQuestion(curQuestion.text, () => {
-                      startRecording();
-                    });
-                  }
-                }}
-                disabled={isAiSpeaking || isProcessing}
-                className="flex items-center gap-1.5 text-slate-400 hover:text-slate-200 font-semibold transition-colors disabled:opacity-30 cursor-pointer"
-              >
-                <RefreshCw size={14} />
-                Repeat Question
-              </button>
+        {/* ── RIGHT PANEL ──────────────────────────────────────── */}
+        <div className="w-[340px] flex flex-col gap-3 shrink-0">
 
-              {isRecording && (
-                <button
-                  onClick={stopRecording}
-                  className="flex items-center gap-1.5 bg-rose-600/85 hover:bg-rose-500 text-white font-bold px-4 py-2 rounded-xl active:scale-95 shadow-md shadow-rose-950/20 transition-all uppercase tracking-wider cursor-pointer"
-                >
-                  <Square size={12} />
-                  Stop & Save Now
-                </button>
+          {/* AI Avatar Card */}
+          <div className="bg-[#0f3460]/60 border border-white/10 rounded-2xl p-4 flex flex-col items-center gap-3 relative overflow-hidden">
+            {/* animated rings when speaking */}
+            {phase === "ai_speaking" && (
+              <>
+                <div className="absolute inset-0 rounded-2xl border-2 border-violet-500/30 animate-ping" />
+                <div className="absolute inset-2 rounded-xl border border-violet-500/20 animate-pulse" />
+              </>
+            )}
+            <div className={`relative w-20 h-20 rounded-full flex items-center justify-center text-4xl font-bold ${
+              phase === "ai_speaking" ? "bg-violet-600 shadow-lg shadow-violet-500/40" : "bg-slate-700"
+            } transition-all duration-300`}>
+              🤖
+              {phase === "ai_speaking" && (
+                <div className="absolute inset-0 rounded-full border-4 border-violet-400/60 animate-ping" />
               )}
             </div>
+            <div className="text-center">
+              <p className="text-white text-sm font-bold">AI Interviewer</p>
+              <p className="text-slate-400 text-xs mt-0.5">
+                {phase === "ai_speaking" ? "Asking question..." : phase === "recording" ? "Listening to you..." : phase === "saving" ? "Processing..." : "Ready"}
+              </p>
+            </div>
+          </div>
+
+          {/* Question Card */}
+          <div className="flex-1 bg-[#16213e]/80 border border-white/10 rounded-2xl p-4 flex flex-col gap-3 min-h-0 overflow-auto">
+            {/* Category pill */}
+            {currentQ && (
+              <div className="flex items-center justify-between">
+                <span className={`text-[10px] font-bold uppercase tracking-widest text-white px-2.5 py-1 rounded-lg ${catColor[currentQ.category] ?? "bg-slate-700"}`}>
+                  {currentQ.category}
+                </span>
+                <span className="text-slate-500 text-[10px] font-mono">Q{qIdx + 1}</span>
+              </div>
+            )}
+
+            {/* Question text */}
+            <div className="flex-1">
+              {currentQ ? (
+                <p className="text-white font-semibold text-sm leading-relaxed">
+                  &ldquo;{currentQ.text}&rdquo;
+                </p>
+              ) : (
+                <p className="text-slate-500 text-sm italic">Loading question...</p>
+              )}
+            </div>
+
+            {/* Phase hint */}
+            <div className="text-xs text-slate-500 bg-white/3 border border-white/5 rounded-lg px-3 py-2">
+              {phase === "ready"       && "Press Begin Interview to start."}
+              {phase === "ai_speaking" && "Listen carefully to the question."}
+              {phase === "recording"   && "Speak clearly — mic is live. Auto-stops on silence."}
+              {phase === "saving"      && "Saving your response, please wait..."}
+              {phase === "done"        && "Compiling your report..."}
+            </div>
+          </div>
+
+          {/* Controls */}
+          <div className="flex flex-col gap-2">
+            {/* Error banner */}
+            {errMsg && (
+              <div className="bg-rose-950/60 border border-rose-700/40 rounded-xl px-3 py-2 text-rose-300 text-xs">
+                {errMsg}
+              </div>
+            )}
+
+            {/* Ready — begin button */}
+            {phase === "ready" && (
+              <button
+                onClick={beginInterview}
+                className="w-full py-3.5 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-bold text-sm shadow-lg shadow-violet-700/30 active:scale-[0.98] transition-all"
+              >
+                🚀 Begin Interview
+              </button>
+            )}
+
+            {/* Recording controls */}
+            {(phase === "recording" || phase === "ai_speaking") && (
+              <div className="flex gap-2">
+                <button
+                  onClick={stopRecording}
+                  disabled={phase !== "recording"}
+                  className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-rose-600 hover:bg-rose-500 disabled:opacity-40 text-white font-bold text-sm active:scale-[0.98] transition-all"
+                >
+                  <Square size={14} />
+                  Done Answering
+                </button>
+                <button
+                  onClick={repeatQuestion}
+                  disabled={phase === "saving" || phase === "done"}
+                  title="Repeat question"
+                  className="w-12 h-12 rounded-xl bg-white/8 hover:bg-white/15 disabled:opacity-30 border border-white/10 flex items-center justify-center text-slate-300 transition-all"
+                >
+                  <RefreshCw size={15} />
+                </button>
+              </div>
+            )}
+
+            {/* Saving/done spinner */}
+            {(phase === "saving" || phase === "done") && (
+              <div className="flex items-center justify-center gap-2 py-3 rounded-xl bg-white/5 border border-white/8 text-slate-300 text-sm">
+                <Loader2 size={16} className="animate-spin text-violet-400" />
+                {phase === "saving" ? "Saving response..." : "Generating report..."}
+              </div>
+            )}
           </div>
         </div>
-      </div>
+      </main>
     </div>
   );
 }
