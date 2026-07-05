@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useSession } from "next-auth/react";
+import { useSession, signOut } from "next-auth/react";
 import { Upload, Briefcase, FileText, CheckCircle, Loader2, Sparkles, GraduationCap, ArrowRight } from "lucide-react";
 import { Github } from "@/components/icons";
 
@@ -61,6 +61,11 @@ export default function OnboardingPage() {
         body: formData,
       });
 
+      if (res.status === 404 || res.status === 401) {
+        signOut({ callbackUrl: "/login" });
+        return;
+      }
+
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to parse resume");
 
@@ -86,6 +91,11 @@ export default function OnboardingPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username: githubUsername }),
       });
+
+      if (res.status === 404 || res.status === 401) {
+        signOut({ callbackUrl: "/login" });
+        return;
+      }
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to analyze GitHub profile");
@@ -116,6 +126,11 @@ export default function OnboardingPage() {
           gradYear: gradYear ? parseInt(gradYear) : undefined,
         }),
       });
+
+      if (res.status === 404 || res.status === 401) {
+        signOut({ callbackUrl: "/login" });
+        return;
+      }
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to save profile details");

@@ -42,11 +42,17 @@ export default function DashboardPage() {
     try {
       setLoading(true);
       const res = await fetch("/api/user/profile");
-      const data = await res.json();
 
+      if (res.status === 404 || res.status === 401) {
+        // Stale cookie detected: user deleted from database (e.g. database reset)
+        signOut({ callbackUrl: "/login" });
+        return;
+      }
+
+      const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to load dashboard data");
 
-      // If onboarding is incomplete, redirect there
+      // If onboarding is incomplete, redirect there instantly (keep loader visible)
       if (!data.user.preferredRole || data.user.resumes.length === 0) {
         router.push("/onboarding");
         return;
@@ -54,9 +60,9 @@ export default function DashboardPage() {
 
       setProfile(data.user);
       setInterviews(data.interviews || []);
+      setLoading(false);
     } catch (err: any) {
       setError(err.message || "An error occurred");
-    } finally {
       setLoading(false);
     }
   };
@@ -137,7 +143,7 @@ export default function DashboardPage() {
           <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-6 backdrop-blur-md shadow-xl space-y-6">
             <div className="flex flex-col items-center text-center">
               <div className="w-16 h-16 rounded-2xl bg-gradient-to-r from-violet-500 to-indigo-500 flex items-center justify-center text-white text-xl font-black mb-4">
-                {profile?.fullName.split(" ").map((n: string) => n[0]).join("")}
+                {profile?.fullName ? profile.fullName.split(" ").map((n: string) => n[0]).join("") : ""}
               </div>
               <h3 className="font-bold text-lg text-white">{profile?.fullName}</h3>
               <p className="text-xs text-slate-400 mt-1 uppercase font-semibold tracking-wider">
