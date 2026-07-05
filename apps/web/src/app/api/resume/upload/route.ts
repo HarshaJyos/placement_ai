@@ -23,8 +23,8 @@ export async function POST(req: Request) {
     const buffer = Buffer.from(await file.arrayBuffer());
     
     // Save to storage/resumes/
-    // Since process.cwd() is inside apps/web/, the storage folder is at ../../storage/resumes
-    const storageDir = path.resolve(process.cwd(), "..", "..", "storage", "resumes");
+    const baseStorage = process.env.STORAGE_DIR || path.resolve(process.cwd(), "..", "..", "storage");
+    const storageDir = path.join(baseStorage, "resumes");
     await mkdir(storageDir, { recursive: true });
 
     const fileExtension = path.extname(file.name) || ".pdf";

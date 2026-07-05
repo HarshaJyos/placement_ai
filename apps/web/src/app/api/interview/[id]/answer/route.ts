@@ -49,7 +49,8 @@ export async function POST(
     const buffer = Buffer.from(await file.arrayBuffer());
 
     // Save audio file locally to storage/audio/
-    const storageDir = path.resolve(process.cwd(), "..", "..", "storage", "audio");
+    const baseStorage = process.env.STORAGE_DIR || path.resolve(process.cwd(), "..", "..", "storage");
+    const storageDir = path.join(baseStorage, "audio");
     await mkdir(storageDir, { recursive: true });
 
     const fileExtension = path.extname(file.name) || ".webm";
@@ -64,7 +65,8 @@ export async function POST(
 
     if (videoFile) {
       const videoBuffer = Buffer.from(await videoFile.arrayBuffer());
-      const videoStorageDir = path.resolve(process.cwd(), "..", "..", "storage", "video");
+      const baseStorage = process.env.STORAGE_DIR || path.resolve(process.cwd(), "..", "..", "storage");
+      const videoStorageDir = path.join(baseStorage, "video");
       await mkdir(videoStorageDir, { recursive: true });
       const videoExtension = path.extname(videoFile.name) || ".webm";
       const videoFilename = `${questionId}_${Date.now()}${videoExtension}`;
