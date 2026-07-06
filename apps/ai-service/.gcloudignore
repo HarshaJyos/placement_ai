@@ -1,0 +1,31 @@
+# ─── Google Cloud CLI Ignore File ─────────────────────────────────────────────
+# Prevents large local folders from being uploaded during 'gcloud builds submit'
+
+.git
+.gitignore
+.gcloudignore
+gcloud.zip
+google-cloud-sdk/
+
+# Node.js
+**/node_modules/
+**/.next/
+**/out/
+**/build/
+**/dist/
+
+# Python
+**/.venv/
+**/venv/
+**/env/
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
+
+# Storage and databases
+**/storage/
+**/*.db
+**/*.sqlite
+**/*.sqlite3
+**/docker-volumes/
