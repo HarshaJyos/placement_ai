@@ -18,14 +18,18 @@ RUN pip install --no-cache-dir --upgrade pip \
 COPY apps/ai-service/ .
 
 # ── Stage 2: Build Web Frontend (Deps) ───────────────────────────────────────
-FROM node:20-alpine AS web-deps
-RUN apk add --no-cache libc6-compat python3 make g++
+FROM node:20-slim AS web-deps
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 \
+    make \
+    g++ \
+ && rm -rf /var/lib/apt/lists/*
 WORKDIR /app/web
 COPY apps/web/package.json apps/web/package-lock.json ./
 RUN npm ci
 
 # ── Stage 3: Build Web Frontend (Builder) ────────────────────────────────────
-FROM node:20-alpine AS web-builder
+FROM node:20-slim AS web-builder
 WORKDIR /app/web
 COPY --from=web-deps /app/web/node_modules ./node_modules
 COPY apps/web/ .
