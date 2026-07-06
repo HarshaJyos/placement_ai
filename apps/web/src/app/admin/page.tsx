@@ -50,9 +50,9 @@ export default function AdminPage() {
 
   if (loading) {
     return (
-      <div className="flex-1 flex flex-col justify-center items-center bg-slate-950 text-slate-400">
-        <Loader2 size={36} className="animate-spin text-teal-400 mb-4" />
-        <p>Loading admin control panel...</p>
+      <div className="flex-1 flex flex-col justify-center items-center bg-background text-muted">
+        <Loader2 size={36} className="animate-spin text-primary mb-4" />
+        <p className="font-semibold text-sm">Loading admin control panel...</p>
       </div>
     );
   }
@@ -84,21 +84,21 @@ export default function AdminPage() {
     : 0;
 
   return (
-    <div className="flex-1 flex flex-col bg-slate-950 text-slate-100 min-h-full">
+    <div className="flex-1 flex flex-col bg-background text-main min-h-full">
       {/* Decorative circles */}
-      <div className="absolute top-0 right-1/4 w-[500px] h-[500px] rounded-full bg-teal-500/5 blur-[120px] pointer-events-none" />
+      <div className="absolute top-0 right-1/4 w-[500px] h-[500px] rounded-full bg-primary/5 blur-[120px] pointer-events-none" />
 
       {/* Header bar */}
-      <header className="w-full border-b border-slate-900 bg-slate-950/60 backdrop-blur-md px-6 py-4 flex items-center justify-between z-10">
+      <header className="w-full border-b border-border bg-white/80 backdrop-blur-md px-6 py-4 flex items-center justify-between z-10 sticky top-0">
         <Link
           href="/dashboard"
-          className="text-slate-400 hover:text-slate-200 transition-colors flex items-center gap-1.5 text-sm"
+          className="text-muted hover:text-main transition-colors flex items-center gap-1.5 text-sm font-bold cursor-pointer"
         >
           <ArrowLeft size={16} />
           Student View
         </Link>
-        <div className="flex items-center gap-2 font-bold text-slate-100 text-sm">
-          <Shield size={16} className="text-teal-400" />
+        <div className="flex items-center gap-2 text-primary font-extrabold text-sm">
+          <Shield size={16} className="text-primary" />
           <span>Admin Portal</span>
         </div>
         <div className="w-20" />
@@ -109,39 +109,39 @@ export default function AdminPage() {
         
         {/* Title */}
         <div className="space-y-1">
-          <h1 className="text-3xl font-extrabold tracking-tight text-white">Placement Cell Panel</h1>
-          <p className="text-slate-400 text-sm">Track resume scores and mock interview performance across all registered students.</p>
+          <h1 className="text-3xl font-extrabold tracking-tight text-primary">Placement Cell Panel</h1>
+          <p className="text-muted text-sm font-medium">Track resume scores and mock interview performance across all registered students.</p>
         </div>
 
         {/* Aggregate Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-slate-900/40 border border-slate-850 rounded-2xl p-6 shadow-md flex items-center gap-4">
-            <div className="bg-teal-500/10 text-teal-400 w-12 h-12 rounded-xl flex items-center justify-center border border-teal-500/10">
+          <div className="bg-white border border-border rounded-2xl p-6 shadow-sm flex items-center gap-4">
+            <div className="bg-primary/5 text-primary w-12 h-12 rounded-xl flex items-center justify-center border border-primary/10">
               <UserCheck size={22} />
             </div>
             <div>
-              <span className="text-xs text-slate-400 font-semibold block">Total Students</span>
-              <span className="text-2xl font-black text-white">{totalStudents}</span>
+              <span className="text-xs text-muted font-bold block mb-1">Total Students</span>
+              <span className="text-2xl font-black text-main">{totalStudents}</span>
             </div>
           </div>
 
-          <div className="bg-slate-900/40 border border-slate-850 rounded-2xl p-6 shadow-md flex items-center gap-4">
-            <div className="bg-violet-500/10 text-violet-400 w-12 h-12 rounded-xl flex items-center justify-center border border-violet-500/10">
+          <div className="bg-white border border-border rounded-2xl p-6 shadow-sm flex items-center gap-4">
+            <div className="bg-accent/5 text-accent w-12 h-12 rounded-xl flex items-center justify-center border border-accent/10">
               <FileText size={22} />
             </div>
             <div>
-              <span className="text-xs text-slate-400 font-semibold block">Avg Resume Score</span>
-              <span className="text-2xl font-black text-white">{averageResumeScore}/100</span>
+              <span className="text-xs text-muted font-bold block mb-1">Avg Resume Score</span>
+              <span className="text-2xl font-black text-main">{averageResumeScore}/100</span>
             </div>
           </div>
 
-          <div className="bg-slate-900/40 border border-slate-850 rounded-2xl p-6 shadow-md flex items-center gap-4">
-            <div className="bg-indigo-500/10 text-indigo-400 w-12 h-12 rounded-xl flex items-center justify-center border border-indigo-500/10">
+          <div className="bg-white border border-border rounded-2xl p-6 shadow-sm flex items-center gap-4">
+            <div className="bg-primary/5 text-primary w-12 h-12 rounded-xl flex items-center justify-center border border-primary/10">
               <Award size={22} />
             </div>
             <div>
-              <span className="text-xs text-slate-400 font-semibold block">Avg Mock Score</span>
-              <span className="text-2xl font-black text-white">
+              <span className="text-xs text-muted font-bold block mb-1">Avg Mock Score</span>
+              <span className="text-2xl font-black text-main">
                 {averageInterviewScore > 0 ? `${averageInterviewScore}/100` : "N/A"}
               </span>
             </div>
@@ -149,17 +149,17 @@ export default function AdminPage() {
         </div>
 
         {/* Filter controls row */}
-        <div className="bg-slate-900/20 border border-slate-850 rounded-xl p-4 flex flex-col md:flex-row gap-4 items-center justify-between shadow-sm">
+        <div className="bg-white border border-border rounded-xl p-4 flex flex-col md:flex-row gap-4 items-center justify-between shadow-sm">
           {/* Search bar */}
           <div className="relative w-full md:w-80">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-muted">
               <Search size={16} />
             </div>
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg py-2 pl-9 pr-4 text-slate-200 placeholder-slate-650 focus:outline-none focus:border-teal-500 transition-colors text-xs"
+              className="w-full bg-white border border-border rounded-lg py-2 pl-9 pr-4 text-main placeholder-muted/65 focus:outline-none focus:border-primary transition-colors text-xs"
               placeholder="Search by student name or email..."
             />
           </div>
@@ -167,11 +167,11 @@ export default function AdminPage() {
           {/* Filters */}
           <div className="flex flex-wrap gap-4 w-full md:w-auto justify-end">
             <div className="flex items-center gap-2">
-              <Filter size={14} className="text-slate-500" />
+              <Filter size={14} className="text-muted" />
               <select
                 value={roleFilter}
                 onChange={(e) => setRoleFilter(e.target.value)}
-                className="bg-slate-950 border border-slate-800 rounded-lg py-2 px-3 text-slate-300 text-xs focus:outline-none"
+                className="bg-white border border-border text-main rounded-lg py-2 px-3 text-xs focus:outline-none focus:border-primary"
               >
                 <option value="ALL">All Roles</option>
                 {rolesList.map((role: any) => (
@@ -183,7 +183,7 @@ export default function AdminPage() {
             <select
               value={branchFilter}
               onChange={(e) => setBranchFilter(e.target.value)}
-              className="bg-slate-950 border border-slate-800 rounded-lg py-2 px-3 text-slate-300 text-xs focus:outline-none"
+              className="bg-white border border-border text-main rounded-lg py-2 px-3 text-xs focus:outline-none focus:border-primary"
             >
               <option value="ALL">All Branches</option>
               {branchesList.map((branch: any) => (
@@ -194,14 +194,14 @@ export default function AdminPage() {
         </div>
 
         {/* Table view */}
-        <div className="bg-slate-900/20 border border-slate-850 rounded-xl overflow-hidden shadow-xl">
+        <div className="bg-white border border-border rounded-xl overflow-hidden shadow-md">
           {filteredStudents.length === 0 ? (
-            <div className="p-12 text-center text-slate-500">No students matching the query filters.</div>
+            <div className="p-12 text-center text-muted font-semibold">No students matching the query filters.</div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm border-collapse">
                 <thead>
-                  <tr className="border-b border-slate-850 text-slate-400 bg-slate-900/30 text-xs font-semibold uppercase tracking-wider">
+                  <tr className="border-b border-border text-muted bg-slate-50 text-xs font-bold uppercase tracking-wider">
                     <th className="py-4 px-6">Student Name</th>
                     <th className="py-4 px-6">Target Role</th>
                     <th className="py-4 px-6">Resume Rating</th>
@@ -210,31 +210,31 @@ export default function AdminPage() {
                     <th className="py-4 px-6">Portfolio Links</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-850">
+                <tbody className="divide-y divide-border">
                   {filteredStudents.map((std) => (
-                    <tr key={std.id} className="hover:bg-slate-900/10 transition-colors">
+                    <tr key={std.id} className="hover:bg-slate-50 transition-colors">
                       <td className="py-4 px-6">
-                        <div className="font-bold text-white text-sm">{std.fullName}</div>
-                        <div className="text-xs text-slate-500 mt-0.5">{std.email}</div>
+                        <div className="font-extrabold text-main text-sm">{std.fullName}</div>
+                        <div className="text-xs text-muted font-semibold mt-0.5">{std.email}</div>
                       </td>
-                      <td className="py-4 px-6 text-slate-300 font-medium text-xs">
+                      <td className="py-4 px-6 text-muted font-bold text-xs">
                         {std.preferredRole || "Not specified"}
                       </td>
                       <td className="py-4 px-6">
                         {std.resumeScore ? (
-                          <span className="font-bold text-teal-400">{std.resumeScore}/100</span>
+                          <span className="font-extrabold text-primary">{std.resumeScore}/100</span>
                         ) : (
-                          <span className="text-slate-550 italic text-xs">No Upload</span>
+                          <span className="text-muted italic text-xs font-semibold">No Upload</span>
                         )}
                       </td>
-                      <td className="py-4 px-6 text-slate-350 text-xs font-semibold">
+                      <td className="py-4 px-6 text-main text-xs font-bold">
                         {std.completedCount} interview(s)
                       </td>
                       <td className="py-4 px-6">
                         {std.averageInterviewScore ? (
-                          <span className="font-extrabold text-teal-400">{std.averageInterviewScore}/100</span>
+                          <span className="font-black text-primary">{std.averageInterviewScore}/100</span>
                         ) : (
-                          <span className="text-slate-550 italic text-xs">No Reports</span>
+                          <span className="text-muted italic text-xs font-semibold">No Reports</span>
                         )}
                       </td>
                       <td className="py-4 px-6">
@@ -243,13 +243,13 @@ export default function AdminPage() {
                             href={std.githubUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-xs text-violet-400 hover:text-violet-300 font-semibold"
+                            className="inline-flex items-center gap-1 text-xs text-accent hover:text-accent/90 font-bold"
                           >
                             GitHub
                             <ExternalLink size={12} />
                           </a>
                         ) : (
-                          <span className="text-slate-600 text-xs italic">N/A</span>
+                          <span className="text-muted text-xs italic font-semibold">N/A</span>
                         )}
                       </td>
                     </tr>

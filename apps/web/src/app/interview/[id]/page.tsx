@@ -347,18 +347,18 @@ export default function InterviewPage({ params }: { params: Promise<{ id: string
 
   // ─── Render ──────────────────────────────────────────────────────────
   if (phase === "loading") return (
-    <div className="h-screen bg-slate-950 flex items-center justify-center flex-col gap-4 text-slate-400">
-      <Loader2 size={40} className="animate-spin text-violet-500" />
-      <p className="text-sm">Loading your interview session...</p>
+    <div className="h-screen bg-background flex items-center justify-center flex-col gap-4 text-muted">
+      <Loader2 size={40} className="animate-spin text-primary" />
+      <p className="text-sm font-semibold">Loading your interview session...</p>
     </div>
   );
 
   if (phase === "error") return (
-    <div className="h-screen bg-slate-950 flex items-center justify-center p-6">
-      <div className="max-w-md w-full bg-rose-950/30 border border-rose-800/50 rounded-2xl p-8 text-center">
-        <h2 className="text-rose-400 font-bold text-xl mb-3">Something went wrong</h2>
-        <p className="text-slate-400 text-sm mb-6">{errMsg}</p>
-        <button onClick={fetchInterview} className="px-6 py-2.5 rounded-xl bg-slate-800 border border-slate-700 text-slate-200 text-sm font-semibold hover:border-slate-500 transition-colors">
+    <div className="h-screen bg-background flex items-center justify-center p-6">
+      <div className="max-w-md w-full bg-rose-50/50 border border-rose-200 rounded-2xl p-8 text-center shadow-lg shadow-rose-500/5">
+        <h2 className="text-rose-600 font-extrabold text-xl mb-3">Something went wrong</h2>
+        <p className="text-muted text-sm mb-6 font-medium">{errMsg}</p>
+        <button onClick={fetchInterview} className="px-6 py-2.5 rounded-xl border border-border text-main text-sm font-bold bg-white hover:bg-slate-50 transition-colors shadow-sm cursor-pointer">
           Retry
         </button>
       </div>
@@ -366,40 +366,40 @@ export default function InterviewPage({ params }: { params: Promise<{ id: string
   );
 
   return (
-    <div className="h-screen w-screen bg-[#1a1a2e] flex flex-col overflow-hidden select-none">
+    <div className="h-screen w-screen bg-background flex flex-col overflow-hidden select-none">
 
       {/* ── TOP BAR ─────────────────────────────────────────────── */}
-      <header className="flex items-center justify-between px-5 py-3 bg-[#16213e]/90 border-b border-white/5 backdrop-blur-sm z-20 shrink-0">
+      <header className="flex items-center justify-between px-5 py-3 bg-white/80 border-b border-border backdrop-blur-sm z-20 shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
-          <span className="text-sm font-semibold text-white">AI Interview</span>
-          <span className="text-slate-400 text-xs">·</span>
-          <span className="text-slate-400 text-xs font-medium">{interview?.targetRole}</span>
+          <span className="text-sm font-bold text-primary">AI Interview</span>
+          <span className="text-muted text-xs">·</span>
+          <span className="text-muted text-xs font-bold">{interview?.targetRole}</span>
         </div>
 
         <div className="flex items-center gap-3">
           {pill && (
-            <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-white text-xs font-semibold ${pill.cls}`}>
+            <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-white text-xs font-bold ${pill.cls}`}>
               {pill.label}
             </span>
           )}
           {/* Question counter */}
-          <span className="text-xs text-slate-400 bg-white/5 border border-white/10 px-3 py-1 rounded-full font-mono">
+          <span className="text-xs text-primary bg-primary/5 border border-primary/10 px-3 py-1 rounded-full font-bold font-mono">
             Q {qIdx + 1} / {total}
           </span>
         </div>
       </header>
 
       {/* ── PROGRESS BAR ────────────────────────────────────────── */}
-      <div className="h-0.5 bg-white/5 shrink-0">
-        <div className="h-full bg-gradient-to-r from-violet-500 to-cyan-400 transition-all duration-700 ease-out" style={{ width: `${pct}%` }} />
+      <div className="h-1 bg-border shrink-0">
+        <div className="h-full bg-primary transition-all duration-700 ease-out" style={{ width: `${pct}%` }} />
       </div>
 
       {/* ── MAIN AREA (Zoom-style) ───────────────────────────────── */}
       <main className="flex-1 flex gap-3 p-3 overflow-hidden min-h-0">
 
         {/* ── LEFT: Webcam (large) ─────────────────────────────── */}
-        <div className="flex-1 relative rounded-2xl overflow-hidden bg-slate-900 min-w-0">
+        <div className="flex-1 relative rounded-2xl overflow-hidden bg-slate-950 min-w-0 border border-border shadow-sm">
           <video
             ref={videoRef}
             autoPlay
@@ -408,14 +408,14 @@ export default function InterviewPage({ params }: { params: Promise<{ id: string
             className="w-full h-full object-cover scale-x-[-1]"
           />
           {/* Name label */}
-          <div className="absolute bottom-3 left-3 bg-black/60 backdrop-blur px-3 py-1 rounded-lg text-white text-xs font-semibold">
+          <div className="absolute bottom-3 left-3 bg-black/75 backdrop-blur px-3 py-1 rounded-lg text-white text-xs font-bold">
             You
           </div>
           {/* Recording dot */}
           {phase === "recording" && (
-            <div className="absolute top-3 right-3 flex items-center gap-1.5 bg-red-600/80 backdrop-blur px-2.5 py-1 rounded-full">
+            <div className="absolute top-3 right-3 flex items-center gap-1.5 bg-red-600/80 backdrop-blur px-3 py-1.5 rounded-full shadow-md">
               <div className="w-2 h-2 rounded-full bg-white animate-ping" />
-              <span className="text-white text-[10px] font-bold">{fmtTime(recTime)}</span>
+              <span className="text-white text-[11px] font-bold">{fmtTime(recTime)}</span>
             </div>
           )}
         </div>
@@ -424,55 +424,55 @@ export default function InterviewPage({ params }: { params: Promise<{ id: string
         <div className="w-[340px] flex flex-col gap-3 shrink-0">
 
           {/* AI Avatar Card */}
-          <div className="bg-[#0f3460]/60 border border-white/10 rounded-2xl p-4 flex flex-col items-center gap-3 relative overflow-hidden">
+          <div className="bg-white border border-border rounded-2xl p-4 flex flex-col items-center gap-3 relative overflow-hidden shadow-sm">
             {/* animated rings when speaking */}
             {phase === "ai_speaking" && (
               <>
-                <div className="absolute inset-0 rounded-2xl border-2 border-violet-500/30 animate-ping" />
-                <div className="absolute inset-2 rounded-xl border border-violet-500/20 animate-pulse" />
+                <div className="absolute inset-0 rounded-2xl border-2 border-accent/20 animate-ping" />
+                <div className="absolute inset-2 rounded-xl border border-accent/15 animate-pulse" />
               </>
             )}
             <div className={`relative w-20 h-20 rounded-full flex items-center justify-center text-4xl font-bold ${
-              phase === "ai_speaking" ? "bg-violet-600 shadow-lg shadow-violet-500/40" : "bg-slate-700"
+              phase === "ai_speaking" ? "bg-accent shadow-lg shadow-accent/25" : "bg-primary/5 text-primary border border-primary/10"
             } transition-all duration-300`}>
               🤖
               {phase === "ai_speaking" && (
-                <div className="absolute inset-0 rounded-full border-4 border-violet-400/60 animate-ping" />
+                <div className="absolute inset-0 rounded-full border-4 border-accent/40 animate-ping" />
               )}
             </div>
             <div className="text-center">
-              <p className="text-white text-sm font-bold">AI Interviewer</p>
-              <p className="text-slate-400 text-xs mt-0.5">
+              <p className="text-main text-sm font-bold">AI Interviewer</p>
+              <p className="text-muted text-xs mt-0.5 font-semibold">
                 {phase === "ai_speaking" ? "Asking question..." : phase === "recording" ? "Listening to you..." : phase === "saving" ? "Processing..." : "Ready"}
               </p>
             </div>
           </div>
 
           {/* Question Card */}
-          <div className="flex-1 bg-[#16213e]/80 border border-white/10 rounded-2xl p-4 flex flex-col gap-3 min-h-0 overflow-auto">
+          <div className="flex-1 bg-white border border-border rounded-2xl p-4 flex flex-col gap-3 min-h-0 overflow-auto shadow-sm">
             {/* Category pill */}
             {currentQ && (
               <div className="flex items-center justify-between">
                 <span className={`text-[10px] font-bold uppercase tracking-widest text-white px-2.5 py-1 rounded-lg ${catColor[currentQ.category] ?? "bg-slate-700"}`}>
                   {currentQ.category}
                 </span>
-                <span className="text-slate-500 text-[10px] font-mono">Q{qIdx + 1}</span>
+                <span className="text-muted text-[10px] font-bold font-mono">Q{qIdx + 1}</span>
               </div>
             )}
 
             {/* Question text */}
-            <div className="flex-1">
+            <div className="flex-1 mt-2">
               {currentQ ? (
-                <p className="text-white font-semibold text-sm leading-relaxed">
+                <p className="text-main font-bold text-sm leading-relaxed">
                   &ldquo;{currentQ.text}&rdquo;
                 </p>
               ) : (
-                <p className="text-slate-500 text-sm italic">Loading question...</p>
+                <p className="text-muted text-sm italic font-medium">Loading question...</p>
               )}
             </div>
 
             {/* Phase hint */}
-            <div className="text-xs text-slate-500 bg-white/3 border border-white/5 rounded-lg px-3 py-2">
+            <div className="text-xs text-primary bg-primary/5 border border-primary/10 rounded-lg px-3 py-2 font-medium">
               {phase === "ready"       && "Press Begin Interview to start."}
               {phase === "ai_speaking" && "Listen carefully to the question."}
               {phase === "recording"   && "Speak clearly — mic is live. Auto-stops on silence."}
@@ -485,7 +485,7 @@ export default function InterviewPage({ params }: { params: Promise<{ id: string
           <div className="flex flex-col gap-2">
             {/* Error banner */}
             {errMsg && (
-              <div className="bg-rose-950/60 border border-rose-700/40 rounded-xl px-3 py-2 text-rose-300 text-xs">
+              <div className="bg-rose-500/5 border border-rose-500/15 rounded-xl px-3 py-2 text-rose-600 text-xs font-semibold">
                 {errMsg}
               </div>
             )}
@@ -494,7 +494,7 @@ export default function InterviewPage({ params }: { params: Promise<{ id: string
             {phase === "ready" && (
               <button
                 onClick={beginInterview}
-                className="w-full py-3.5 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-bold text-sm shadow-lg shadow-violet-700/30 active:scale-[0.98] transition-all"
+                className="w-full py-3.5 rounded-xl bg-accent hover:bg-accent/90 text-white font-bold text-sm shadow-md shadow-accent/25 active:scale-[0.98] transition-all cursor-pointer"
               >
                 🚀 Begin Interview
               </button>
@@ -506,7 +506,7 @@ export default function InterviewPage({ params }: { params: Promise<{ id: string
                 <button
                   onClick={stopRecording}
                   disabled={phase !== "recording"}
-                  className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-rose-600 hover:bg-rose-500 disabled:opacity-40 text-white font-bold text-sm active:scale-[0.98] transition-all"
+                  className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-rose-600 hover:bg-rose-500 disabled:opacity-40 text-white font-bold text-sm active:scale-[0.98] transition-all cursor-pointer"
                 >
                   <Square size={14} />
                   Done Answering
@@ -514,7 +514,7 @@ export default function InterviewPage({ params }: { params: Promise<{ id: string
                 <button
                   onClick={repeatQuestion}
                   title="Repeat question"
-                  className="w-12 h-12 rounded-xl bg-white/8 hover:bg-white/15 border border-white/10 flex items-center justify-center text-slate-300 transition-all"
+                  className="w-12 h-12 rounded-xl bg-white hover:bg-slate-50 border border-border flex items-center justify-center text-main transition-all shadow-sm cursor-pointer"
                 >
                   <RefreshCw size={15} />
                 </button>
@@ -523,8 +523,8 @@ export default function InterviewPage({ params }: { params: Promise<{ id: string
 
             {/* Saving/done spinner */}
             {(phase === "saving" || phase === "done") && (
-              <div className="flex items-center justify-center gap-2 py-3 rounded-xl bg-white/5 border border-white/8 text-slate-300 text-sm">
-                <Loader2 size={16} className="animate-spin text-violet-400" />
+              <div className="flex items-center justify-center gap-2 py-3 rounded-xl bg-white border border-border text-muted text-sm font-semibold shadow-sm">
+                <Loader2 size={16} className="animate-spin text-primary" />
                 {phase === "saving" ? "Saving response..." : "Generating report..."}
               </div>
             )}

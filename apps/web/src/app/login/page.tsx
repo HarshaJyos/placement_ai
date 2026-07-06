@@ -48,26 +48,26 @@ function LoginForm() {
   };
 
   return (
-    <div className="bg-slate-900/40 backdrop-blur-xl border border-slate-800/80 rounded-2xl p-8 shadow-2xl shadow-violet-950/10">
+    <div className="bg-white border border-border rounded-2xl p-8 shadow-lg shadow-primary/5">
       {success && (
-        <div className="mb-6 p-4 rounded-xl bg-teal-500/10 border border-teal-500/20 text-teal-400 text-sm text-center font-medium">
+        <div className="mb-6 p-4 rounded-xl bg-teal-500/5 border border-teal-500/15 text-teal-600 text-sm text-center font-medium">
           {success}
         </div>
       )}
 
       {error && (
-        <div className="mb-6 p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-sm text-center">
+        <div className="mb-6 p-4 rounded-xl bg-rose-500/5 border border-rose-500/15 text-rose-600 text-sm text-center font-medium">
           {error}
         </div>
       )}
 
       <form onSubmit={handleSubmit} className="space-y-5">
         <div>
-          <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
+          <label className="block text-xs font-bold text-main uppercase tracking-wider mb-2">
             Email Address
           </label>
           <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-muted">
               <Mail size={18} />
             </div>
             <input
@@ -75,18 +75,18 @@ function LoginForm() {
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 pl-10 pr-4 text-slate-200 placeholder-slate-650 focus:outline-none focus:border-violet-500 transition-colors text-sm"
+              className="w-full bg-white border border-border rounded-xl py-3 pl-10 pr-4 text-main placeholder-muted/60 focus:outline-none focus:border-primary transition-colors text-sm"
               placeholder="you@college.edu"
             />
           </div>
         </div>
 
         <div>
-          <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
+          <label className="block text-xs font-bold text-main uppercase tracking-wider mb-2">
             Password
           </label>
           <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-muted">
               <Lock size={18} />
             </div>
             <input
@@ -94,7 +94,7 @@ function LoginForm() {
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 pl-10 pr-4 text-slate-200 placeholder-slate-650 focus:outline-none focus:border-violet-500 transition-colors text-sm"
+              className="w-full bg-white border border-border rounded-xl py-3 pl-10 pr-4 text-main placeholder-muted/60 focus:outline-none focus:border-primary transition-colors text-sm"
               placeholder="••••••••"
             />
           </div>
@@ -103,7 +103,7 @@ function LoginForm() {
         <button
           type="submit"
           disabled={isLoading}
-          className="w-full mt-2 relative group overflow-hidden rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 py-3.5 px-4 text-sm font-semibold text-white shadow-lg hover:shadow-violet-500/25 active:scale-[0.98] transition-all disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center gap-2"
+          className="w-full mt-2 relative group overflow-hidden rounded-xl bg-accent hover:bg-accent/90 py-3.5 px-4 text-sm font-bold text-white shadow-md shadow-accent/25 active:scale-[0.98] transition-all disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center gap-2 cursor-pointer"
         >
           {isLoading ? (
             <>
@@ -119,9 +119,9 @@ function LoginForm() {
         </button>
       </form>
 
-      <div className="mt-8 text-center text-xs text-slate-500">
+      <div className="mt-8 text-center text-xs text-muted">
         Don't have an account?{" "}
-        <Link href="/register" className="text-violet-400 hover:text-violet-300 transition-colors font-medium">
+        <Link href="/register" className="text-primary hover:text-primary/95 transition-colors font-bold">
           Create Account
         </Link>
       </div>
@@ -131,25 +131,26 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <div className="flex-1 flex flex-col justify-center items-center px-4 relative overflow-hidden bg-slate-950">
+    <div className="flex-1 flex flex-col justify-center items-center px-4 relative overflow-hidden bg-background">
       {/* Decorative Background Gradients */}
-      <div className="absolute top-[-20%] right-[-10%] w-[500px] h-[500px] rounded-full bg-violet-600/10 blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-[-20%] left-[-10%] w-[500px] h-[500px] rounded-full bg-teal-600/10 blur-[120px] pointer-events-none" />
+      <div className="absolute top-[-20%] right-[-10%] w-[500px] h-[500px] rounded-full bg-primary/5 blur-[120px] pointer-events-none" />
+      <div className="absolute bottom-[-20%] left-[-10%] w-[500px] h-[500px] rounded-full bg-accent/5 blur-[120px] pointer-events-none" />
 
       <div className="w-full max-w-md z-10">
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-violet-400 via-indigo-400 to-teal-400 mb-2">
+          <img src="/logo.webp" alt="PlacementAI Logo" className="h-16 w-auto mx-auto object-contain mb-4" />
+          <h1 className="text-3xl font-extrabold tracking-tight text-primary mb-2">
             Welcome Back
           </h1>
-          <p className="text-slate-400 text-sm">
+          <p className="text-muted text-sm font-medium">
             Sign in to access your dashboard and mock interviews
           </p>
         </div>
 
         <Suspense fallback={
-          <div className="bg-slate-900/40 backdrop-blur-xl border border-slate-800/80 rounded-2xl p-8 flex flex-col items-center justify-center min-h-[300px]">
-            <Loader2 size={36} className="animate-spin text-violet-500 mb-4" />
-            <p className="text-sm text-slate-450">Loading login panel...</p>
+          <div className="bg-white border border-border rounded-2xl p-8 flex flex-col items-center justify-center min-h-[300px] shadow-lg">
+            <Loader2 size={36} className="animate-spin text-primary mb-4" />
+            <p className="text-sm text-muted">Loading login panel...</p>
           </div>
         }>
           <LoginForm />

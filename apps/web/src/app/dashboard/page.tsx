@@ -87,9 +87,9 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="flex-1 flex flex-col justify-center items-center bg-slate-950 text-slate-400">
-        <Loader2 size={36} className="animate-spin text-violet-500 mb-4" />
-        <p>Loading your placement dashboard...</p>
+      <div className="flex-1 flex flex-col justify-center items-center bg-background text-muted">
+        <Loader2 size={36} className="animate-spin text-primary mb-4" />
+        <p className="font-semibold text-sm">Loading your placement dashboard...</p>
       </div>
     );
   }
@@ -99,35 +99,33 @@ export default function DashboardPage() {
   const githubProfile = profile?.githubUrl?.split("/").pop() || "Not Connected";
 
   return (
-    <div className="flex-1 flex flex-col bg-slate-950 text-slate-100 min-h-full">
+    <div className="flex-1 flex flex-col bg-background text-main min-h-full">
       {/* Glow Backdrops */}
-      <div className="absolute top-0 right-1/4 w-[600px] h-[600px] rounded-full bg-violet-600/5 blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-0 left-1/4 w-[600px] h-[600px] rounded-full bg-teal-500/5 blur-[120px] pointer-events-none" />
+      <div className="absolute top-0 right-1/4 w-[600px] h-[600px] rounded-full bg-primary/5 blur-[120px] pointer-events-none" />
+      <div className="absolute bottom-0 left-1/4 w-[600px] h-[600px] rounded-full bg-accent/5 blur-[120px] pointer-events-none" />
 
       {/* Header bar */}
-      <header className="w-full border-b border-slate-900 bg-slate-950/60 backdrop-blur-md px-6 py-4 flex items-center justify-between z-10">
-        <div className="flex items-center gap-2 font-bold text-lg text-slate-100">
-          <div className="bg-gradient-to-r from-violet-600 to-indigo-600 p-2 rounded-xl text-white shadow-lg shadow-violet-500/25">
-            <Sparkles size={18} />
-          </div>
-          <span>PlacementAI</span>
+      <header className="w-full border-b border-border bg-white/80 backdrop-blur-md px-6 py-4 flex items-center justify-between z-10 sticky top-0">
+        <div className="flex items-center gap-3">
+          <img src="/logo.webp" alt="PlacementAI Logo" className="h-10 w-auto object-contain" />
+          <span className="font-bold text-lg text-primary tracking-tight">PlacementAI</span>
         </div>
         <div className="flex items-center gap-4">
           {profile?.role === "ADMIN" && (
             <Link
               href="/admin"
-              className="text-teal-400 hover:text-teal-300 text-sm font-semibold transition-colors border border-teal-500/20 px-3 py-1.5 rounded-lg bg-teal-950/10"
+              className="text-primary hover:text-primary/90 text-xs font-bold transition-colors border border-primary/20 px-3 py-1.5 rounded-lg bg-primary/5"
             >
               Admin View
             </Link>
           )}
-          <div className="flex items-center gap-2 text-sm text-slate-300 border-r border-slate-800 pr-4">
-            <User size={16} className="text-slate-400" />
-            <span className="font-semibold">{profile?.fullName}</span>
+          <div className="flex items-center gap-2 text-sm text-main border-r border-border pr-4">
+            <User size={16} className="text-muted" />
+            <span className="font-bold">{profile?.fullName}</span>
           </div>
           <button
             onClick={() => signOut({ callbackUrl: "/login" })}
-            className="text-slate-400 hover:text-slate-200 transition-colors flex items-center gap-1.5 text-sm"
+            className="text-muted hover:text-main transition-colors flex items-center gap-1.5 text-sm font-semibold cursor-pointer"
           >
             <LogOut size={16} />
             Sign Out
@@ -140,37 +138,37 @@ export default function DashboardPage() {
         
         {/* Left Sidebar: Profile Summary */}
         <div className="lg:col-span-1 space-y-6">
-          <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-6 backdrop-blur-md shadow-xl space-y-6">
+          <div className="bg-white border border-border rounded-2xl p-6 shadow-md space-y-6">
             <div className="flex flex-col items-center text-center">
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-r from-violet-500 to-indigo-500 flex items-center justify-center text-white text-xl font-black mb-4">
+              <div className="w-16 h-16 rounded-2xl bg-primary/5 text-primary flex items-center justify-center text-xl font-black mb-4 border border-primary/10">
                 {profile?.fullName ? profile.fullName.split(" ").map((n: string) => n[0]).join("") : ""}
               </div>
-              <h3 className="font-bold text-lg text-white">{profile?.fullName}</h3>
-              <p className="text-xs text-slate-400 mt-1 uppercase font-semibold tracking-wider">
+              <h3 className="font-bold text-lg text-main">{profile?.fullName}</h3>
+              <p className="text-xs text-muted mt-1 uppercase font-bold tracking-wider">
                 {profile?.preferredRole}
               </p>
             </div>
 
-            <div className="border-t border-slate-850 pt-5 space-y-4">
+            <div className="border-t border-border pt-5 space-y-4">
               <div className="flex items-center justify-between text-sm">
-                <span className="text-slate-400 flex items-center gap-2">
+                <span className="text-muted flex items-center gap-2 font-medium">
                   <FileText size={16} /> Resume Score
                 </span>
-                <span className="font-bold text-violet-400">{resumeScore}/100</span>
+                <span className="font-extrabold text-primary">{resumeScore}/100</span>
               </div>
               <div className="flex items-center justify-between text-sm">
-                <span className="text-slate-400 flex items-center gap-2">
+                <span className="text-muted flex items-center gap-2 font-medium">
                   <Github size={16} /> GitHub
                 </span>
-                <span className="font-bold text-teal-400 text-xs truncate max-w-[120px]" title={githubProfile}>
+                <span className="font-bold text-primary text-xs truncate max-w-[120px]" title={githubProfile}>
                   {githubProfile}
                 </span>
               </div>
               <div className="flex items-center justify-between text-sm">
-                <span className="text-slate-400 flex items-center gap-2">
+                <span className="text-muted flex items-center gap-2 font-medium">
                   <Award size={16} /> Branch
                 </span>
-                <span className="font-semibold text-slate-350 text-xs text-right max-w-[120px] truncate">
+                <span className="font-bold text-main text-xs text-right max-w-[120px] truncate">
                   {profile?.branch || "N/A"}
                 </span>
               </div>
@@ -178,7 +176,7 @@ export default function DashboardPage() {
 
             <Link
               href="/onboarding"
-              className="block text-center text-xs text-violet-400 hover:text-violet-300 font-semibold transition-colors mt-4"
+              className="block text-center text-xs text-accent hover:text-accent/90 font-bold transition-colors mt-4"
             >
               Edit Profile details
             </Link>
@@ -189,10 +187,10 @@ export default function DashboardPage() {
         <div className="lg:col-span-3 space-y-8">
           
           {/* Action Row */}
-          <div className="bg-gradient-to-r from-violet-900/20 via-indigo-950/10 to-teal-950/5 border border-slate-800/80 rounded-2xl p-8 backdrop-blur-md shadow-xl flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="bg-primary/5 border border-primary/10 rounded-2xl p-8 shadow-md flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="space-y-2 text-center md:text-left">
-              <h2 className="text-2xl font-black text-white">Start a Mock Interview</h2>
-              <p className="text-slate-450 text-sm max-w-md">
+              <h2 className="text-2xl font-black text-primary">Start a Mock Interview</h2>
+              <p className="text-muted text-sm font-medium max-w-md">
                 Launch a 15-question customized interview based on your current resume and GitHub repositories.
               </p>
             </div>
@@ -200,7 +198,7 @@ export default function DashboardPage() {
             <button
               onClick={handleStartInterview}
               disabled={startLoading}
-              className="bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-semibold px-6 py-4 rounded-xl shadow-lg hover:shadow-violet-500/20 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50 min-w-[200px]"
+              className="bg-accent hover:bg-accent/90 text-white font-bold px-6 py-4 rounded-xl shadow-lg shadow-accent/20 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50 min-w-[200px] cursor-pointer"
             >
               {startLoading ? (
                 <>
@@ -217,20 +215,20 @@ export default function DashboardPage() {
           </div>
 
           {error && (
-            <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-sm text-center">
+            <div className="p-4 rounded-xl bg-rose-500/5 border border-rose-500/15 text-rose-600 text-sm text-center font-medium">
               {error}
             </div>
           )}
 
           {/* Past Interviews List */}
           <div className="space-y-4">
-            <h3 className="text-lg font-bold text-white flex items-center gap-2">
-              <ClipboardList size={18} className="text-slate-450" />
+            <h3 className="text-lg font-bold text-main flex items-center gap-2">
+              <ClipboardList size={18} className="text-muted" />
               Past Interviews
             </h3>
 
             {interviews.length === 0 ? (
-              <div className="border border-slate-850 rounded-2xl p-12 text-center text-slate-500">
+              <div className="border border-border rounded-2xl p-12 text-center text-muted font-medium bg-white shadow-sm">
                 No mock interviews taken yet. Click "Start Interview" above to take your first session.
               </div>
             ) : (
@@ -246,18 +244,18 @@ export default function DashboardPage() {
                   return (
                     <div
                       key={iv.id}
-                      className="bg-slate-900/20 border border-slate-850 rounded-xl p-5 flex items-center justify-between hover:border-slate-700 transition-colors"
+                      className="bg-white border border-border rounded-xl p-5 flex items-center justify-between hover:border-primary/40 hover:shadow-sm transition-all"
                     >
                       <div className="space-y-1.5">
-                        <h4 className="font-bold text-sm text-white">
+                        <h4 className="font-bold text-sm text-main">
                           Mock Interview — {iv.targetRole}
                         </h4>
-                        <div className="flex items-center gap-4 text-xs text-slate-500">
+                        <div className="flex items-center gap-4 text-xs text-muted font-medium">
                           <span className="flex items-center gap-1">
                             <Calendar size={12} />
                             {dateStr}
                           </span>
-                          <span className="flex items-center gap-1 uppercase tracking-wider font-semibold">
+                          <span className="flex items-center gap-1 uppercase tracking-wider font-bold">
                             <Clock size={12} />
                             {iv.status === "IN_PROGRESS" ? "In Progress" : "Completed"}
                           </span>
@@ -267,13 +265,13 @@ export default function DashboardPage() {
                       <div className="flex items-center gap-6">
                         {isCompleted && iv.report ? (
                           <div className="text-right">
-                            <span className="text-xs text-slate-500 block">Overall Score</span>
-                            <span className="font-extrabold text-lg text-teal-400">
+                            <span className="text-xs text-muted block font-medium">Overall Score</span>
+                            <span className="font-black text-lg text-primary">
                               {iv.report.overallScore}/100
                             </span>
                           </div>
                         ) : (
-                          <span className="text-xs text-amber-500 font-semibold bg-amber-500/10 px-2.5 py-1 rounded-lg">
+                          <span className="text-xs text-amber-600 font-bold bg-amber-500/5 border border-amber-500/15 px-2.5 py-1 rounded-lg">
                             Incomplete
                           </span>
                         )}
@@ -281,7 +279,7 @@ export default function DashboardPage() {
                         {isCompleted ? (
                           <Link
                             href={`/report/${iv.id}`}
-                            className="bg-slate-800 border border-slate-700 hover:bg-slate-750 text-slate-200 text-xs font-semibold px-4 py-2.5 rounded-lg flex items-center gap-1 transition-colors"
+                            className="bg-primary hover:bg-primary/90 text-white text-xs font-bold px-4 py-2.5 rounded-lg flex items-center gap-1 transition-colors"
                           >
                             View Report
                             <ArrowRight size={12} />
@@ -289,7 +287,7 @@ export default function DashboardPage() {
                         ) : (
                           <Link
                             href={`/interview/${iv.id}`}
-                            className="bg-violet-950/20 border border-violet-500/20 hover:bg-violet-900/10 text-violet-400 text-xs font-semibold px-4 py-2.5 rounded-lg flex items-center gap-1 transition-colors"
+                            className="bg-accent hover:bg-accent/90 text-white text-xs font-bold px-4 py-2.5 rounded-lg flex items-center gap-1 transition-colors"
                           >
                             Resume
                             <Play size={12} className="fill-current" />
