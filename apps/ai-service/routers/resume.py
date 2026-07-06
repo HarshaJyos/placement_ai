@@ -31,7 +31,7 @@ async def parse_resume(request: ResumeParseRequest):
             async with httpx.AsyncClient() as client:
                 res = await client.get(file_path)
                 if res.status_code != 200:
-                    raise HTTPException(status_code=400, detail="Failed to download resume file from URL")
+                    raise HTTPException(status_code=400, detail=f"Failed to download resume file from URL: status {res.status_code}, body: {res.text[:200]}")
                 
                 temp_filename = f"temp_resume_{os.urandom(8).hex()}.pdf"
                 temp_dir = os.path.join(os.getcwd(), "temp")
