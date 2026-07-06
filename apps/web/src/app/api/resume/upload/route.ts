@@ -33,15 +33,19 @@ export async function POST(req: Request) {
 
     await writeFile(filePath, buffer);
 
+    // Call Python FastAPI service /resume/parse
+    const aiServiceUrl = process.env.AI_SERVICE_URL || "http://127.0.0.1:8000";
+    
     // Construct remote download URL if running behind public URL, else pass local path
     let fileUrl = filePath;
-    if (process.env.NEXTAUTH_URL) {
+    const isInternalAi = aiServiceUrl.includes("127.0.0.1") || 
+                         aiServiceUrl.includes("localhost") || 
+                         aiServiceUrl.includes("ai-service");
+    if (!isInternalAi && process.env.NEXTAUTH_URL) {
       const filename = path.basename(filePath);
       fileUrl = `${process.env.NEXTAUTH_URL}/api/storage/resumes/${filename}`;
     }
 
-    // Call Python FastAPI service /resume/parse
-    const aiServiceUrl = process.env.AI_SERVICE_URL || "http://127.0.0.1:8000";
     const parseRes = await fetch(`${aiServiceUrl}/resume/parse`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

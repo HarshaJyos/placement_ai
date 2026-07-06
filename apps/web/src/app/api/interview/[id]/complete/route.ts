@@ -65,13 +65,18 @@ export async function POST(
       );
     }
 
+    const aiServiceUrl = process.env.AI_SERVICE_URL || "http://127.0.0.1:8000";
+    const isInternalAi = aiServiceUrl.includes("127.0.0.1") || 
+                         aiServiceUrl.includes("localhost") || 
+                         aiServiceUrl.includes("ai-service");
+
     // Map to answers format for the FastAPI batch evaluation
     const answersPayload = answeredQuestions.map((q) => {
       const resp = q.response!;
       let audioPath = resp.audioUrl || "";
       
       // Construct remote download URL if running behind public URL, else pass local path
-      if (audioPath && process.env.NEXTAUTH_URL) {
+      if (audioPath && !isInternalAi && process.env.NEXTAUTH_URL) {
         const filename = path.basename(audioPath);
         audioPath = `${process.env.NEXTAUTH_URL}/api/storage/audio/${filename}`;
       }
@@ -85,7 +90,6 @@ export async function POST(
     });
 
     // Call Python FastAPI service /report/evaluate-interview
-    const aiServiceUrl = process.env.AI_SERVICE_URL || "http://127.0.0.1:8000";
     const reportRes = await fetch(`${aiServiceUrl}/report/evaluate-interview`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
