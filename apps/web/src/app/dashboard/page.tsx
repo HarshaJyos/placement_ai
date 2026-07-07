@@ -302,6 +302,14 @@ export default function DashboardPage() {
           </div>
         </div>
       </main>
+
+      {/* Footer */}
+      <footer className="w-full border-t border-border py-6 text-center text-muted text-xs mt-auto z-10 bg-white/90 backdrop-blur-sm space-y-1 shrink-0">
+        <p>&copy; {new Date().getFullYear()} PlacementAI. All Rights Reserved.</p>
+        <p className="font-bold text-[10px] tracking-widest uppercase text-muted/80">
+          Powered by <span className="text-primary font-black">Solvempire Private Limited</span>
+        </p>
+      </footer>
     </div>
   );
 }

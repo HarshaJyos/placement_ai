@@ -155,6 +155,10 @@ export default function LoginPage() {
         }>
           <LoginForm />
         </Suspense>
+        
+        <p className="mt-8 text-center text-[10px] tracking-widest text-muted/80 font-bold uppercase">
+          Powered by <span className="text-primary font-black">Solvempire Private Limited</span>
+        </p>
       </div>
     </div>
   );

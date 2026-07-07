@@ -16,3 +16,9 @@ body {
   color: var(--color-main);
   font-family: var(--font-sans);
 }
+
+.grid-pattern {
+  background-size: 30px 30px;
+  background-image: linear-gradient(to right, rgba(8, 63, 126, 0.03) 1px, transparent 1px),
+                    linear-gradient(to bottom, rgba(8, 63, 126, 0.03) 1px, transparent 1px);
+}
