@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { Mic, Square, Loader2, RefreshCw, Award, Volume2, ChevronRight } from "lucide-react";
+import { Mic, Square, Loader2, RefreshCw, Award, Volume2, ChevronRight, Bot, Play } from "lucide-react";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface Question { id: string; text: string; category: string; order: number; response?: any }
@@ -338,7 +338,7 @@ export default function InterviewPage({ params }: { params: Promise<{ id: string
   // ── Phase label & color for status pill ────────────────────────────
   const statusPill = () => {
     if (phase === "ai_speaking") return { label: "AI Speaking", cls: "bg-violet-600/90 animate-pulse" };
-    if (phase === "recording")   return { label: `🔴 Listening  ${fmtTime(recTime)}`, cls: "bg-rose-600/90 animate-pulse" };
+    if (phase === "recording")   return { label: `Listening  ${fmtTime(recTime)}`, cls: "bg-rose-600/90 animate-pulse" };
     if (phase === "saving")      return { label: "Saving...", cls: "bg-amber-600/80" };
     if (phase === "done")        return { label: "Analyzing...", cls: "bg-teal-600/80" };
     return null;
@@ -380,6 +380,9 @@ export default function InterviewPage({ params }: { params: Promise<{ id: string
         <div className="flex items-center gap-3">
           {pill && (
             <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-white text-xs font-bold ${pill.cls}`}>
+              {phase === "recording" && (
+                <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
+              )}
               {pill.label}
             </span>
           )}
@@ -432,10 +435,10 @@ export default function InterviewPage({ params }: { params: Promise<{ id: string
                 <div className="absolute inset-2 rounded-xl border border-accent/15 animate-pulse" />
               </>
             )}
-            <div className={`relative w-20 h-20 rounded-full flex items-center justify-center text-4xl font-bold ${
-              phase === "ai_speaking" ? "bg-accent shadow-lg shadow-accent/25" : "bg-primary/5 text-primary border border-primary/10"
+            <div className={`relative w-20 h-20 rounded-full flex items-center justify-center text-primary font-bold ${
+              phase === "ai_speaking" ? "bg-accent shadow-lg shadow-accent/25 text-white" : "bg-primary/5 border border-primary/10"
             } transition-all duration-300`}>
-              🤖
+              <Bot size={36} />
               {phase === "ai_speaking" && (
                 <div className="absolute inset-0 rounded-full border-4 border-accent/40 animate-ping" />
               )}
@@ -494,9 +497,10 @@ export default function InterviewPage({ params }: { params: Promise<{ id: string
             {phase === "ready" && (
               <button
                 onClick={beginInterview}
-                className="w-full py-3.5 rounded-xl bg-accent hover:bg-accent/90 text-white font-bold text-sm shadow-md shadow-accent/25 active:scale-[0.98] transition-all cursor-pointer"
+                className="w-full py-3.5 rounded-xl bg-accent hover:bg-accent/90 text-white font-bold text-sm shadow-md shadow-accent/25 active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center gap-2"
               >
-                🚀 Begin Interview
+                <Play size={14} className="fill-current" />
+                Begin Interview
               </button>
             )}
 
